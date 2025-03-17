@@ -1,0 +1,14 @@
+GET /index.html?name=test HTTP/1.1
+Host: www.zalupa.com
+Port: 4243
+#Content-Length: 16
+Transfer-Encoding: chunked
+Port: 4244
+
+1
+a
+2
+bo
+3
+bus
+0
