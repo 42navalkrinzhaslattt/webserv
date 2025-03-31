@@ -54,6 +54,8 @@ SRC :=
 vpath %.$(EXT) $(addprefix $(SRC_PATH), $(SUB_PATH))
 SRC += main.cpp
 SRC += ParseHeader.cpp
+SRC += Config.cpp
+SRC += Errors.cpp
 SRC += Utils.cpp
 
 # object vars
