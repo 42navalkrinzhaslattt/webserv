@@ -57,6 +57,7 @@ SRC += ParseHeader.cpp
 SRC += Config.cpp
 SRC += Errors.cpp
 SRC += Utils.cpp
+SRC += Server.cpp
 
 # object vars
 OBJ := $(SRC:.$(EXT)=.o)
@@ -85,6 +86,8 @@ clean:
 	$(RM) $(OBJ)
 	$(RM) $(DEPS)
 	$(RM) -r $(OBJDIR)
+	$(RM) $(SRC_PATH)*.o
+	$(RM) -r tests/unit/*/*.o
 
 fclean: clean
 	$(RM) $(NAME)

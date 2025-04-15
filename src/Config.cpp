@@ -1,210 +1,228 @@
 #include "Config.hpp"
 
-static Tokens	lexConfig(std::ifstream	&configFile) {
-	Tokens	tokens;
-	string	line;
-	string	rawConfig;
-	bool	start = true;
+static string unquoteString(const string& str) {
+    if (str.length() >= 2 && str[0] == '"' && str[str.length() - 1] == '"') {
+        return str.substr(1, str.length() - 2);
+    }
+    return str;
+}
 
-	while (std::getline(configFile, line)) {
-		if (!start)
-			rawConfig += "\n";
-		else
-			start = false;
-		rawConfig += line;
-	}
-	std::vector<string> vec = Utils::ft_split(rawConfig);
+static Tokens lexConfig(std::ifstream &configFile) {
+    Tokens tokens;
+    string line;
+    string rawConfig;
+    bool start = true;
 
-	for (std::vector<string>::iterator it = vec.begin(); it != vec.end(); it++) {
-		string str = *it;
+    while (std::getline(configFile, line)) {
+        // Remove comments
+        size_t commentPos = line.find('#');
+        if (commentPos != string::npos) {
+            line = line.substr(0, commentPos);
+        }
 
-		if (str == "{")
-			tokens.push_back(Token(TOK_OPENING_BRACE, str));
-		else if (str == "}")
-			tokens.push_back(Token(TOK_CLOSING_BRACE, str));
-		else if (str == ";")
-			tokens.push_back(Token(TOK_SEMICOLON, str));
-		else
-			tokens.push_back(Token(TOK_WORD, str));
-	}
+        // Skip empty lines after removing comments
+        if (line.empty() || line.find_first_not_of(" \t\r\n") == string::npos)
+            continue;
 
-	for (Tokens::iterator it = tokens.begin(); it != tokens.end(); it++) {
-		std::cout << it->second << std::endl;
-	}
+        if (!start)
+            rawConfig += "\n";
+        else
+            start = false;
+        rawConfig += line;
+    }
 
-	return tokens;
+    std::vector<string> vec = Utils::ft_split(rawConfig);
+    for (std::vector<string>::iterator it = vec.begin(); it != vec.end(); it++) {
+        string str = *it;
+
+        // Process special characters and quoted strings
+        if (str == "{")
+            tokens.push_back(Token(TOK_OPENING_BRACE, str));
+        else if (str == "}")
+            tokens.push_back(Token(TOK_CLOSING_BRACE, str));
+        else if (str == ";")
+            tokens.push_back(Token(TOK_SEMICOLON, str));
+        else if (str.length() >= 2 && str[0] == '"' && str[str.length() - 1] == '"')
+            tokens.push_back(Token(TOK_WORD, unquoteString(str)));
+        else if (str.find('"') != string::npos)
+            throw std::runtime_error("Invalid quote in string: " + str);
+        else
+            tokens.push_back(Token(TOK_WORD, str));
+    }
+
+    return tokens;
+}
+
+static bool isValidPath(const string& path, bool) {
+    // For quoted paths, we allow spaces
+    if (path.length() >= 2 && path[0] == '"' && path[path.length() - 1] == '"') {
+        return true;
+    }
+    // For unquoted paths, no spaces allowed
+    return path.find(' ') == string::npos;
+}
+
+static bool isValidMethod(const string& method) {
+    return method == "GET" || method == "POST" || method == "DELETE";
+}
+
+static bool isValidDirective(const string& directive, const string& value, bool) {
+    if (directive == "root" || directive == "location") {
+        return isValidPath(value, directive == "location");
+    }
+    else if (directive == "server_name") {
+        return true; // Allow any server name
+    }
+    else if (directive == "listen") {
+        int port = std::atoi(value.c_str());
+        return port > 0 && port < 65536;
+    }
+    else if (directive == "allowed_methods") {
+        return isValidMethod(value);
+    }
+    else if (directive == "index") {
+        return true; // Allow any index file name
+    }
+    return false;
 }
 
 Directive parseDirective(Tokens &tokens) {
-	if (tokens.empty())
-		throw std::runtime_error(Errors::Config::MissingArguments(string("")));
+    if (tokens.empty())
+        throw std::runtime_error(Errors::Config::MissingArguments(string("")));
 
-	if (tokens[0].first != TOK_WORD)
-		throw std::runtime_error(Errors::Config::InvalidDirectiveName(tokens[0].second));
+    Directive directive;
+    directive.first = tokens[0].second;
+    tokens.erase(tokens.begin());
 
-	if (tokens.size() < 3)
-		throw std::runtime_error(Errors::Config::MissingArguments(tokens[0].second));
+    // Check for semicolon
+    if (tokens.empty() || tokens[0].first == TOK_SEMICOLON)
+        throw std::runtime_error(Errors::Config::MissingArguments(directive.first));
 
-	Directive directive;
-	directive.first = tokens[0].second;
-	tokens.pop_front();
+    // Parse arguments until semicolon
+    while (!tokens.empty() && tokens[0].first != TOK_SEMICOLON) {
+        const string& value = tokens[0].second;
 
-	while (!tokens.empty()) {
-		if (tokens[0].first == TOK_SEMICOLON) {
-			tokens.pop_front();
-			return directive;
-		}
+        // Validate directive values
+        if (!isValidDirective(directive.first, value, directive.first == "location")) {
+            throw std::runtime_error("Invalid value for directive '" + directive.first + "': " + value);
+        }
 
-		if (tokens[0].first != TOK_WORD)
-			throw std::runtime_error(Errors::Config::InvalidArgument(directive.first, tokens[0].second));
+        // Store unquoted value in the directive
+        directive.second.push_back(unquoteString(value));
+        tokens.erase(tokens.begin());
+    }
 
-		directive.second.push_back(tokens[0].second);
-		tokens.pop_front();
-	}
+    // Remove semicolon
+    if (!tokens.empty() && tokens[0].first == TOK_SEMICOLON)
+        tokens.erase(tokens.begin());
+    else
+        throw std::runtime_error(Errors::Config::MissingSemicolon(directive.first));
 
-	throw std::runtime_error(Errors::Config::ExpectedToken(directive.first, ";"));
+    return directive;
 }
 
+static LocationContext parseLocation(Tokens &tokens) {
+    if (tokens.size() < 5)
+        throw std::runtime_error(Errors::Config::MissingArguments("location"));
 
-static LocationContext	parseLocation(Tokens &tokens) {
-	if (tokens.size() < 5)
-		throw std::runtime_error(Errors::Config::MissingArguments("location"));
+    if (tokens[0].second != "location")
+        throw std::runtime_error(Errors::Config::InvalidCtxName(tokens[0].second, "location"));
+    tokens.pop_front();
 
-	if (tokens[0].second != "location")
-		throw std::runtime_error(Errors::Config::InvalidCtxName(tokens[0].second, "location"));
-	tokens.pop_front();
+    if (tokens[0].first != TOK_WORD)
+        throw std::runtime_error(Errors::Config::InvalidArgument("location", tokens[0].second));
 
-	LocationContext locationCtx;
+    LocationContext location;
+    location.first = tokens[0].second;
+    tokens.pop_front();
 
-	if (tokens[0].first != TOK_WORD)
-		throw std::runtime_error(Errors::Config::ExpectedToken("location", "word"));
-	locationCtx.first = tokens[0].second;
-	tokens.pop_front();
+    if (tokens[0].first != TOK_OPENING_BRACE)
+        throw std::runtime_error(Errors::Config::MissingBrace("location", "{"));
+    tokens.pop_front();
 
-	if (tokens[0].first != TOK_OPENING_BRACE)
-		throw std::runtime_error(Errors::Config::ExpectedToken("location", "{"));
-	tokens.pop_front();
+    while (!tokens.empty() && tokens[0].first != TOK_CLOSING_BRACE) {
+        location.second.push_back(parseDirective(tokens));
+    }
 
-	while (!tokens.empty()) {
-		if (tokens[0].first == TOK_CLOSING_BRACE) {
-			tokens.pop_front();
-			break;
-		}
+    if (tokens.empty() || tokens[0].first != TOK_CLOSING_BRACE)
+        throw std::runtime_error(Errors::Config::MissingBrace("location", "}"));
 
-		if (tokens.size() == 1)
-			throw std::runtime_error(Errors::Config::ExpectedToken("location", "}"));
-
-		locationCtx.second.push_back(parseDirective(tokens));
-	}
-
-	for (Directives::iterator it = locationCtx .second.begin(); it != locationCtx.second.end(); it++) {
-		Directive curr = *it;
-		std::cout << "Directive name: " << curr.first << std::endl;
-
-		for (Arguments::iterator strIt = curr.second.begin(); strIt != curr.second.end(); strIt++) {
-			std::cout << "Directive argument: " << *strIt << std::endl;
-		}
-
-		std::cout << std::endl;
-	}
-
-	return locationCtx;
+    tokens.pop_front();
+    return location;
 }
 
-static ServerContext	parseServer(Tokens &tokens) {
-	if (tokens.empty())
-		throw std::runtime_error(Errors::Config::MissingArguments(string("")));
+static ServerContext parseServer(Tokens &tokens) {
+    if (tokens.empty())
+        throw std::runtime_error(Errors::Config::MissingArguments(string("")));
 
-	if (tokens[0].second != "server")
-		throw std::runtime_error(Errors::Config::InvalidCtxName(tokens[0].second, "server"));
+    if (tokens[0].second != "server")
+        throw std::runtime_error(Errors::Config::InvalidCtxName(tokens[0].second, "server"));
 
-	tokens.pop_front();
-	tokens.pop_front();
+    tokens.pop_front();
+    tokens.pop_front();
 
-	if (tokens.size() < 2)
-		throw std::runtime_error(Errors::Config::MissingArguments("server"));
+    if (tokens.size() < 2)
+        throw std::runtime_error(Errors::Config::MissingArguments("server"));
 
-	ServerContext serverCtx;
+    ServerContext serverCtx;
 
-	while (!tokens.empty()) {
-		if (tokens[0].first == TOK_CLOSING_BRACE) {
-			tokens.pop_front();
-			break;
-		}
-		if (tokens.size() == 1)
-			throw std::runtime_error(Errors::Config::ExpectedToken("location", "}"));
+    while (!tokens.empty()) {
+        if (tokens[0].first == TOK_CLOSING_BRACE) {
+            tokens.pop_front();
+            break;
+        }
+        if (tokens.size() == 1)
+            throw std::runtime_error(Errors::Config::ExpectedToken("location", "}"));
 
-		if (tokens.size() == 2)
-				throw std::runtime_error(Errors::Config::MissingArguments(tokens[1].second));
+        if (tokens.size() == 2)
+            throw std::runtime_error(Errors::Config::MissingArguments(tokens[1].second));
 
-		switch (tokens[2].first)
-		{
-			case TOK_WORD:
-				serverCtx.first.push_back(parseDirective(tokens));
-				break;
-			case TOK_SEMICOLON:
-				serverCtx.first.push_back(parseDirective(tokens));
-				break;
-			case TOK_OPENING_BRACE:
-				serverCtx.second.push_back(parseLocation(tokens));
-				break;
-			default:
-				throw std::runtime_error(Errors::Config::MissingArguments(tokens[1].second));
-		}
-	}
+        switch (tokens[2].first)
+        {
+            case TOK_WORD:
+                serverCtx.first.push_back(parseDirective(tokens));
+                break;
+            case TOK_SEMICOLON:
+                serverCtx.first.push_back(parseDirective(tokens));
+                break;
+            case TOK_OPENING_BRACE:
+                serverCtx.second.push_back(parseLocation(tokens));
+                break;
+            default:
+                throw std::runtime_error(Errors::Config::MissingArguments(tokens[1].second));
+        }
+    }
 
-	for (Directives::iterator it = serverCtx .first.begin(); it != serverCtx.first.end(); it++) {
-		Directive curr = *it;
-		std::cout << "Directive name: " << curr.first << std::endl;
-
-		for (Arguments::iterator strIt = curr.second.begin(); strIt != curr.second.end(); strIt++) {
-			std::cout << "Directive argument: " << *strIt << std::endl;
-		}
-
-		std::cout << std::endl;
-	}
-
-	return serverCtx;
+    return serverCtx;
 }
 
-Config	parseConfig(const char *pathConf) {
+Config parseConfig(const char *pathConf) {
 
-	std::ifstream	configFile(pathConf);
+    std::ifstream configFile(pathConf);
 
-	if (!configFile.is_open())
-		throw std::runtime_error(Errors::Config::OpeningError(pathConf));
+    if (!configFile.is_open())
+        throw std::runtime_error(Errors::Config::OpeningError(pathConf));
 
-	Tokens tokens = lexConfig(configFile);
+    Tokens tokens = lexConfig(configFile);
 
-	Config config;
+    Config config;
 
-	while (!tokens.empty()) {
-		if (tokens.size() == 1)
-			throw std::runtime_error(Errors::Config::MissingArguments(string(tokens[0].second)));
+    while (!tokens.empty()) {
+        if (tokens.size() == 1)
+            throw std::runtime_error(Errors::Config::MissingArguments(string(tokens[0].second)));
 
-		switch (tokens[1].first)
-		{
-			case TOK_WORD:
-				config.first.push_back(parseDirective(tokens));
-				break;
-			case TOK_OPENING_BRACE:
-				config.second.push_back(parseServer(tokens));
-				break;
-			default:
-				throw std::runtime_error(Errors::Config::MissingArguments(tokens[1].second));
-		}
-	}
+        switch (tokens[1].first)
+        {
+            case TOK_WORD:
+                config.first.push_back(parseDirective(tokens));
+                break;
+            case TOK_OPENING_BRACE:
+                config.second.push_back(parseServer(tokens));
+                break;
+            default:
+                throw std::runtime_error(Errors::Config::MissingArguments(tokens[1].second));
+        }
+    }
 
-	for (Directives::iterator it = config.first.begin(); it != config.first.end(); it++) {
-		Directive curr = *it;
-		std::cout << "Directive name: " << curr.first << std::endl;
-
-		for (Arguments::iterator strIt = curr.second.begin(); strIt != curr.second.end(); strIt++) {
-			std::cout << "Directive argument: " << *strIt << std::endl;
-		}
-
-		std::cout << std::endl;
-	}
-
-	return config;
+    return config;
 }
