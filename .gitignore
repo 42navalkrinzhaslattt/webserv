@@ -1,0 +1,7 @@
+.gitignore
+obj/
+.idea/
+CMakeLists.txt
+cmake-build-debug/
+webserv
+test_upload.txt
