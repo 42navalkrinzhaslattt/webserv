@@ -134,7 +134,8 @@ void Server::loadConfig(const string& confPath) {
             else if (currentServer) {
                 // Server block directives
                 if (directive == "listen") {
-                    currentServer->port = static_cast<int>(std::strtol(value.c_str(), NULL, 10));
+                    int port = static_cast<int>(std::strtol(value.c_str(), NULL, 10));
+                    currentServer->ports.push_back(port);
                 }
                 else if (directive == "server_name") {
                     currentServer->serverNames = Utils::ft_split(value);
@@ -184,9 +185,23 @@ Server::ServerConfig* Server::matchServerConfig(const HttpRequest& /* request */
 
     // First, try to find a server block that matches both port and server_name
     for (size_t i = 0; i < serverConfigs.size(); ++i) {
-        std::cout << "Checking server config " << i << ": port=" << serverConfigs[i].port << std::endl;
+        std::cout << "Checking server config " << i << ": ports=[";
+        for (size_t p = 0; p < serverConfigs[i].ports.size(); ++p) {
+            if (p > 0) std::cout << ", ";
+            std::cout << serverConfigs[i].ports[p];
+        }
+        std::cout << "]" << std::endl;
 
-        if (serverConfigs[i].port == port) {
+        // Check if any of the server's ports match the requested port
+        bool portMatches = false;
+        for (size_t p = 0; p < serverConfigs[i].ports.size(); ++p) {
+            if (serverConfigs[i].ports[p] == port) {
+                portMatches = true;
+                break;
+            }
+        }
+
+        if (portMatches) {
             std::cout << "  Port matches" << std::endl;
 
             // Check if the host matches any of the server_names
@@ -203,8 +218,10 @@ Server::ServerConfig* Server::matchServerConfig(const HttpRequest& /* request */
 
     // If no exact match, return the first server block with matching port
     for (size_t i = 0; i < serverConfigs.size(); ++i) {
-        if (serverConfigs[i].port == port) {
-            return &serverConfigs[i];
+        for (size_t p = 0; p < serverConfigs[i].ports.size(); ++p) {
+            if (serverConfigs[i].ports[p] == port) {
+                return &serverConfigs[i];
+            }
         }
     }
 
@@ -508,7 +525,9 @@ bool Server::initialize(int /* defaultPort */) {
     // Extract unique ports from server configurations
     std::set<int> ports;
     for (size_t i = 0; i < serverConfigs.size(); ++i) {
-        ports.insert(serverConfigs[i].port);
+        for (size_t j = 0; j < serverConfigs[i].ports.size(); ++j) {
+            ports.insert(serverConfigs[i].ports[j]);
+        }
     }
 
     if (ports.empty()) {
