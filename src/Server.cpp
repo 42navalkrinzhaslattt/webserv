@@ -18,8 +18,6 @@
 #include <sys/wait.h>
 #include <cctype>
 
-//todo: file.write() and file.read() error handling
-
 Server::Server(const std::string &confPath) : running(false) {
     // Load configuration from file
     loadConfig(confPath);
@@ -111,27 +109,8 @@ void Server::loadConfig(const string& confPath) {
                 else if (directive == "return") {
                     currentLocation->redirect = value;
                 }
-                else if (directive == "limit_except" || directive == "allowed_methods") {
-                    // Clear any existing methods first
-                    currentLocation->allowedMethods.clear();
-
-                    // Split the value by spaces and add each method
-                    vector<string> methods = Utils::ft_split(value);
-                    for (size_t j = 0; j < methods.size(); ++j) {
-                        // Only add valid methods
-                        string method = methods[j];
-                        if (method == "GET" || method == "POST" || method == "DELETE") {
-                            currentLocation->allowedMethods.push_back(method);
-                        }
-                    }
-
-                    // Debug output
-                    std::cout << "Allowed methods for location '" << currentLocation->path << "': ";
-                    for (size_t j = 0; j < currentLocation->allowedMethods.size(); ++j) {
-                        if (j > 0) std::cout << ", ";
-                        std::cout << currentLocation->allowedMethods[j];
-                    }
-                    std::cout << std::endl;
+                else if (directive == "limit_except") {
+                    currentLocation->allowedMethods = Utils::ft_split(value);
                 }
                 else if (directive == "client_max_body_size") {
                     currentLocation->clientMaxBodySize = std::strtoul(value.c_str(), NULL, 10);
@@ -157,18 +136,59 @@ void Server::loadConfig(const string& confPath) {
                 if (directive == "listen") {
                     // Split the value by spaces to handle multiple ports
                     vector<string> portStrings = Utils::ft_split(value);
+
+                    // Check for duplicate ports in the same listen directive
+                    std::set<int> directivePorts;
+                    bool hasDuplicates = false;
+
                     for (size_t i = 0; i < portStrings.size(); ++i) {
                         int port = static_cast<int>(std::strtol(portStrings[i].c_str(), NULL, 10));
                         if (port > 0 && port < 65536) { // Valid port range
-                            currentServer->ports.push_back(port);
-                            std::cout << "Added port: " << port << std::endl;
+                            // Check if this port is already in the directive
+                            if (directivePorts.find(port) != directivePorts.end()) {
+                                std::cerr << "Error: Duplicate port " << port << " in listen directive" << std::endl;
+                                hasDuplicates = true;
+                            } else {
+                                directivePorts.insert(port);
+
+                                // Check if this port is already in the server's ports list
+                                bool portAlreadyInServer = false;
+                                for (size_t j = 0; j < currentServer->ports.size(); ++j) {
+                                    if (currentServer->ports[j] == port) {
+                                        std::cerr << "Error: Port " << port << " is already specified for this server" << std::endl;
+                                        hasDuplicates = true;
+                                        portAlreadyInServer = true;
+                                        break;
+                                    }
+                                }
+
+                                if (!portAlreadyInServer) {
+                                    currentServer->ports.push_back(port);
+                                    std::cout << "Added port: " << port << " for hostname: " << currentServer->hostname << std::endl;
+                                }
+                            }
                         } else {
                             std::cerr << "Invalid port number: " << portStrings[i] << std::endl;
                         }
                     }
+
+                    if (hasDuplicates) {
+                        std::cerr << "Configuration contains duplicate ports. Aborting." << std::endl;
+                        exit(1); // Exit immediately as this is a critical configuration error
+                    }
                 }
                 else if (directive == "server_name") {
-                    currentServer->serverNames = Utils::ft_split(value);
+                    // Each server block can only have one hostname
+                    vector<string> hostnames = Utils::ft_split(value);
+                    if (!hostnames.empty()) {
+                        currentServer->hostname = hostnames[0];
+                        std::cout << "Set hostname: " << currentServer->hostname << std::endl;
+
+                        // Warn if multiple hostnames were specified
+                        if (hostnames.size() > 1) {
+                            std::cerr << "Warning: Multiple hostnames specified, using only the first one: " << currentServer->hostname << std::endl;
+                        }
+                    }
                 }
                 else if (directive == "root") {
                     currentServer->root = value;
@@ -213,9 +233,9 @@ bool Server::setNonBlocking(int fd) {
 Server::ServerConfig* Server::matchServerConfig(const HttpRequest& /* request */, const string& host, int port) {
     std::cout << "Matching server for host: '" << host << "' on port: " << port << std::endl;
 
-    // First, try to find a server block that matches both port and server_name
+    // First, try to find a server block that matches both port and hostname
     for (size_t i = 0; i < serverConfigs.size(); ++i) {
-        std::cout << "Checking server config " << i << ": ports=[";
+        std::cout << "Checking server config " << i << ": hostname='" << serverConfigs[i].hostname << "', ports=[";
         for (size_t p = 0; p < serverConfigs[i].ports.size(); ++p) {
             if (p > 0) std::cout << ", ";
             std::cout << serverConfigs[i].ports[p];
@@ -234,14 +254,12 @@ Server::ServerConfig* Server::matchServerConfig(const HttpRequest& /* request */
         if (portMatches) {
             std::cout << "  Port matches" << std::endl;
 
-            // Check if the host matches any of the server_names
-            for (size_t j = 0; j < serverConfigs[i].serverNames.size(); ++j) {
-                std::cout << "  Checking server_name: '" << serverConfigs[i].serverNames[j] << "'" << std::endl;
+            // Check if the host matches the server's hostname
+            std::cout << "  Checking hostname: '" << serverConfigs[i].hostname << "'" << std::endl;
 
-                if (serverConfigs[i].serverNames[j] == host) {
-                    std::cout << "  Host matches!" << std::endl;
-                    return &serverConfigs[i];
-                }
+            if (serverConfigs[i].hostname == host) {
+                std::cout << "  Host matches!" << std::endl;
+                return &serverConfigs[i];
             }
         }
     }
@@ -250,6 +268,7 @@ Server::ServerConfig* Server::matchServerConfig(const HttpRequest& /* request */
     for (size_t i = 0; i < serverConfigs.size(); ++i) {
         for (size_t p = 0; p < serverConfigs[i].ports.size(); ++p) {
             if (serverConfigs[i].ports[p] == port) {
+                std::cout << "  Found server with matching port " << port << std::endl;
                 return &serverConfigs[i];
             }
         }
@@ -257,6 +276,7 @@ Server::ServerConfig* Server::matchServerConfig(const HttpRequest& /* request */
 
     // If no matching port, return the first server block (default)
     if (!serverConfigs.empty()) {
+        std::cout << "  No matching port, using default server" << std::endl;
         return &serverConfigs[0];
     }
 
@@ -307,11 +327,9 @@ string Server::getPhysicalPath(const LocationConfig* location, const string& req
     // Special case for CGI scripts - don't apply overly strict sanitization
     bool isCgiRequest = requestPath.find("/cgi-bin/") == 0;
 
-    // Check for obvious path traversal attempts
-    if (!isCgiRequest && (requestPath.find("../") != string::npos ||
-                          requestPath.find("/...") != string::npos ||
-                          requestPath.find("%2e%2e") != string::npos)) {
-        std::cout << "Path traversal attempt detected in request path: '" << requestPath << "'" << std::endl;
+    // First, check if the request path contains any suspicious patterns
+    if (!isCgiRequest && Utils::containsSuspiciousPatterns(requestPath)) {
+        std::cout << "Suspicious pattern detected in request path: '" << requestPath << "'" << std::endl;
         return location ? location->root : "/tmp/www";
     }
 
@@ -324,11 +342,9 @@ string Server::getPhysicalPath(const LocationConfig* location, const string& req
     // First, URL decode the request path
     string decodedPath = Utils::urlDecode(requestPath);
 
-    // Check for obvious path traversal attempts in decoded path
-    if (decodedPath.find("../") != string::npos ||
-        decodedPath.find("/...") != string::npos ||
-        decodedPath.find("%2e%2e") != string::npos) {
-        std::cout << "Path traversal attempt detected in decoded path: '" << decodedPath << "'" << std::endl;
+    // Check if the decoded path contains suspicious patterns
+    if (Utils::containsSuspiciousPatterns(decodedPath)) {
+        std::cout << "Suspicious pattern detected in decoded path: '" << decodedPath << "'" << std::endl;
         return rootDir;
     }
 
@@ -719,12 +735,8 @@ void Server::handleNewConnection(int serverSocket) {
                               "Retry-After: 30\r\n\r\n"
                               "Server too busy, please try again.";
 
-        // Send the response and check for errors
-        ssize_t sent = ::send(clientFd, response, strlen(response), 0);
-        if (sent <= 0) {
-            std::cerr << "Error sending 503 response" << std::endl;
-            // We're closing anyway, so just log the error
-        }
+        // Send the response (ignoring errors since we're closing anyway)
+        ::send(clientFd, response, strlen(response), 0);
         ::close(clientFd);
         return;
     }
@@ -757,15 +769,13 @@ void Server::handleClientData(int clientFd) {
     ssize_t bytesRead = ::recv(clientFd, buffer, bufferSize - 1, 0);
 
     if (bytesRead <= 0) {
-        // Either an error or connection closed
         if (bytesRead == 0) {
-            // Connection closed by client
             std::cout << "Client disconnected gracefully" << std::endl;
-        } else {
-            // Error occurred
-            std::cerr << "Error reading from client" << std::endl;
+            removeClient(clientFd);
+        } else if (errno != EWOULDBLOCK && errno != EAGAIN) {
+            std::cerr << "Error reading from client: " << strerror(errno) << std::endl;
+            removeClient(clientFd);
         }
-        removeClient(clientFd);
         delete[] buffer;
         return;
     }
@@ -966,26 +976,6 @@ void Server::handleRequest(int clientFd, const HttpRequest& request) {
     // Get the physical path
     string physicalPath = getPhysicalPath(locationConfig, request.path);
 
-    // Double-check that the method is allowed (this should never happen due to the earlier check,
-    // but we're being extra cautious)
-    if (!isMethodAllowed(locationConfig, request.method)) {
-        std::string body = "The requested method '" + request.method + "' is not allowed for this resource. Allowed methods: " +
-                          Utils::ft_join(locationConfig->allowedMethods, ", ");
-
-        // Generate a pretty HTML error page
-        string htmlErrorPage = generateErrorPage(405, "Method Not Allowed", body);
-
-        std::ostringstream response;
-        response << "HTTP/1.1 405 Method Not Allowed\r\n"
-                << "Content-Type: text/html\r\n"
-                << "Content-Length: " << htmlErrorPage.length() << "\r\n"
-                << "Allow: " << Utils::ft_join(locationConfig->allowedMethods, ", ") << "\r\n\r\n"
-                << htmlErrorPage;
-
-        sendResponse(clientFd, response.str());
-        return;
-    }
-
     // Handle the request based on the method
     if (request.method == "GET") {
         handleGetRequest(clientFd, request, locationConfig, physicalPath);
@@ -1076,11 +1066,12 @@ void Server::handleGetRequest(int clientFd, const HttpRequest& request, Location
                 while (totalSent < buffer.size()) {
                     ssize_t sent = ::send(clientFd, buffer.data() + totalSent,
                                       buffer.size() - totalSent, 0);
-                    if (sent <= 0) {
-                        // Either error or connection closed
-                        std::cerr << "Error or connection closed while sending file data" << std::endl;
-                        removeClient(clientFd);
-                        return;
+                    if (sent < 0) {
+                        if (errno != EWOULDBLOCK && errno != EAGAIN) {
+                            removeClient(clientFd);
+                            return;
+                        }
+                        continue;
                     }
                     totalSent += static_cast<size_t>(sent);
                 }
@@ -1127,11 +1118,12 @@ void Server::handleGetRequest(int clientFd, const HttpRequest& request, Location
         while (totalSent < buffer.size()) {
             ssize_t sent = ::send(clientFd, buffer.data() + totalSent,
                               buffer.size() - totalSent, 0);
-            if (sent <= 0) {
-                // Either error or connection closed
-                std::cerr << "Error or connection closed while sending file data" << std::endl;
-                removeClient(clientFd);
-                return;
+            if (sent < 0) {
+                if (errno != EWOULDBLOCK && errno != EAGAIN) {
+                    removeClient(clientFd);
+                    return;
+                }
+                continue;
             }
             totalSent += static_cast<size_t>(sent);
         }
@@ -1177,11 +1169,8 @@ void Server::handlePostRequest(int clientFd, const HttpRequest& request, Locatio
             string filename = request.path.substr(lastSlash + 1);
 
             // Sanitize the filename to prevent directory traversal
-            // Only check for obvious path traversal attempts in filenames
-            if (filename.find("../") != string::npos ||
-                filename.find("/") != string::npos ||
-                filename.find("\\") != string::npos) {
-                std::cout << "Path traversal attempt detected in filename: '" << filename << "'" << std::endl;
+            if (Utils::containsSuspiciousPatterns(filename)) {
+                std::cout << "Suspicious pattern detected in filename: '" << filename << "'" << std::endl;
 
                 // Generate a safe filename instead
                 time_t now = time(NULL);
@@ -1241,10 +1230,8 @@ void Server::handlePostRequest(int clientFd, const HttpRequest& request, Locatio
 }
 
 void Server::handleDeleteRequest(int clientFd, const HttpRequest& /* request */, const string& physicalPath) {
-    // Check for obvious path traversal attempts
-    if (physicalPath.find("../") != string::npos ||
-        physicalPath.find("/...") != string::npos ||
-        physicalPath.find("%2e%2e") != string::npos) {
+    // Additional safety check - ensure the path is safe
+    if (Utils::containsSuspiciousPatterns(physicalPath)) {
         std::string body = "Invalid path";
         sendErrorResponse(clientFd, 400, "Bad Request", body);
         return;
@@ -1310,11 +1297,12 @@ void Server::sendResponse(int clientFd, const std::string& response) {
     while (totalSent < response.length()) {
         ssize_t sent = ::send(clientFd, response.c_str() + totalSent,
                           response.length() - totalSent, 0);
-        if (sent <= 0) {
-            // Either error or connection closed
-            std::cerr << "Error or connection closed while sending response" << std::endl;
-            removeClient(clientFd);
-            return;
+        if (sent < 0) {
+            if (errno != EWOULDBLOCK && errno != EAGAIN) {
+                removeClient(clientFd);
+                return;
+            }
+            continue;
         }
         totalSent += static_cast<size_t>(sent);
     }
@@ -1364,11 +1352,9 @@ bool Server::isCgiRequest(const string& path, LocationConfig* location, string& 
     if (location->cgiHandlers.find(extension) != location->cgiHandlers.end()) {
         cgiHandler = location->cgiHandlers[extension];
 
-        // Check for obvious path traversal attempts in CGI handler
-        if (cgiHandler.find("../") != string::npos ||
-            cgiHandler.find("/...") != string::npos ||
-            cgiHandler.find("%2e%2e") != string::npos) {
-            std::cout << "Path traversal attempt detected in CGI handler: '" << cgiHandler << "'" << std::endl;
+        // Ensure the CGI handler path is safe
+        if (Utils::containsSuspiciousPatterns(cgiHandler)) {
+            std::cout << "Suspicious pattern detected in CGI handler: '" << cgiHandler << "'" << std::endl;
             return false;
         }
 
@@ -1498,21 +1484,7 @@ void Server::handleCgiRequest(int clientFd, const HttpRequest& request, Location
 
     // Write request body to the CGI script's stdin
     if (request.method == "POST" || request.method == "PUT") {
-        ssize_t bytesWritten = ::write(inputPipe[1], request.body.c_str(), request.body.length());
-        if (bytesWritten < 0) {
-            std::cerr << "Error writing to CGI stdin" << std::endl;
-            ::close(inputPipe[1]);
-            ::close(outputPipe[0]);
-            // Wait for child process to avoid zombie
-            int status;
-            ::waitpid(pid, &status, 0);
-            std::string body = "Error communicating with CGI script";
-            sendErrorResponse(clientFd, 500, "Internal Server Error", body);
-            return;
-        } else if (static_cast<size_t>(bytesWritten) < request.body.length()) {
-            std::cerr << "Incomplete write to CGI stdin: " << bytesWritten << " of " << request.body.length() << " bytes" << std::endl;
-            // Continue anyway, as partial writes might be acceptable for some CGI scripts
-        }
+        ::write(inputPipe[1], request.body.c_str(), request.body.length());
     }
 
     ::close(inputPipe[1]); // Close write end after writing
@@ -1522,27 +1494,9 @@ void Server::handleCgiRequest(int clientFd, const HttpRequest& request, Location
     string cgiOutput;
     ssize_t bytesRead;
 
-    while (true) {
-        bytesRead = ::read(outputPipe[0], buffer, sizeof(buffer) - 1);
-
-        if (bytesRead > 0) {
-            // Successful read
-            buffer[bytesRead] = '\0';
-            cgiOutput.append(buffer, static_cast<size_t>(bytesRead));
-        } else if (bytesRead == 0) {
-            // End of file
-            break;
-        } else {
-            // Error occurred
-            std::cerr << "Error reading from CGI output" << std::endl;
-            ::close(outputPipe[0]);
-            // Wait for child process to avoid zombie
-            int status;
-            ::waitpid(pid, &status, 0);
-            std::string body = "Error reading CGI script output";
-            sendErrorResponse(clientFd, 500, "Internal Server Error", body);
-            return;
-        }
+    while ((bytesRead = ::read(outputPipe[0], buffer, sizeof(buffer) - 1)) > 0) {
+        buffer[bytesRead] = '\0';
+        cgiOutput.append(buffer, static_cast<size_t>(bytesRead));
     }
 
     ::close(outputPipe[0]); // Close read end after reading

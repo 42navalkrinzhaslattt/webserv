@@ -42,14 +42,13 @@ public:
 	};
 
 	struct ServerConfig {
-		vector<int> ports; // Changed from single port to vector of ports
-		vector<string> serverNames;
+		// Each server has one hostname and multiple ports
+		string hostname;
+		vector<int> ports;
 		string root;
 		vector<LocationConfig> locations;
 
-		ServerConfig() : root("/tmp/www") {
-			ports.push_back(8080); // Default port
-		}
+		ServerConfig() : hostname("localhost"), root("/tmp/www") {}
 	};
 
 	struct HttpRequest;
