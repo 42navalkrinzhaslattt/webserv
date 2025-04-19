@@ -278,13 +278,8 @@ bool Utils::isPathSafe(const string& path, const string& rootDir) {
         return true; // Allow CGI scripts
     }
 
-    // Check for obvious path traversal attempts
-    if (path.find("../") != string::npos ||
-        path.find("/...") != string::npos ||
-        path.find("%2e%2e") != string::npos ||
-        rootDir.find("../") != string::npos ||
-        rootDir.find("/...") != string::npos ||
-        rootDir.find("%2e%2e") != string::npos) {
+    // Check for suspicious patterns first
+    if (containsSuspiciousPatterns(path) || containsSuspiciousPatterns(rootDir)) {
         return false;
     }
 
@@ -337,34 +332,27 @@ string Utils::sanitizePath(const string& path, const string& rootDir) {
         return normalizedPath;
     }
 
-    // For non-CGI paths, apply basic sanitization
-    // Check for obvious path traversal attempts
-    if (path.find("../") != string::npos ||
-        path.find("/...") != string::npos ||
-        path.find("%2e%2e") != string::npos) {
-        std::cout << "Path traversal attempt detected in path: '" << path << "'" << std::endl;
+    // For non-CGI paths, apply full sanitization
+    if (containsSuspiciousPatterns(path)) {
+        std::cout << "Suspicious pattern detected in path: '" << path << "'" << std::endl;
         return rootDir; // Return the root directory if the path is suspicious
     }
 
     // URL decode the path
     string decodedPath = urlDecode(path);
 
-    // Check for obvious path traversal attempts in decoded path
-    if (decodedPath.find("../") != string::npos ||
-        decodedPath.find("/...") != string::npos ||
-        decodedPath.find("%2e%2e") != string::npos) {
-        std::cout << "Path traversal attempt detected in decoded path: '" << decodedPath << "'" << std::endl;
+    // Check the decoded path for suspicious patterns
+    if (containsSuspiciousPatterns(decodedPath)) {
+        std::cout << "Suspicious pattern detected in decoded path: '" << decodedPath << "'" << std::endl;
         return rootDir; // Return the root directory if the decoded path is suspicious
     }
 
     // Normalize the path
     string normalizedPath = normalizePath(decodedPath);
 
-    // Check for obvious path traversal attempts in normalized path
-    if (normalizedPath.find("../") != string::npos ||
-        normalizedPath.find("/...") != string::npos ||
-        normalizedPath.find("%2e%2e") != string::npos) {
-        std::cout << "Path traversal attempt detected in normalized path: '" << normalizedPath << "'" << std::endl;
+    // Check the normalized path for suspicious patterns
+    if (containsSuspiciousPatterns(normalizedPath)) {
+        std::cout << "Suspicious pattern detected in normalized path: '" << normalizedPath << "'" << std::endl;
         return rootDir; // Return the root directory if the normalized path is suspicious
     }
 
