@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Static File Example</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+        }
+        p {
+            margin-bottom: 20px;
+        }
+        .code {
+            background-color: #f1f1f1;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        footer {
+            margin-top: 20px;
+            text-align: center;
+            font-size: 0.8em;
+            color: #777;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Static File Example</h1>
+        <p>This is a static HTML file served by the Webserv HTTP server.</p>
+        
+        <h2>HTTP Request</h2>
+        <div class="code">GET /static/example.html HTTP/1.1
+Host: localhost:8080
+User-Agent: Mozilla/5.0
+Accept: text/html,application/xhtml+xml,application/xml</div>
+        
+        <h2>HTTP Response</h2>
+        <div class="code">HTTP/1.1 200 OK
+Content-Type: text/html
+Content-Length: [length]
+Connection: keep-alive
+
+<!DOCTYPE html>
+<html>...</div>
+        
+        <p><a href="/">Back to homepage</a></p>
+        
+        <footer>
+            Webserv - HTTP/1.1 Server in C++98
+        </footer>
+    </div>
+</body>
+</html>

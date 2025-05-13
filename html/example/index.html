@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Example Virtual Host</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+            background-color: #e8f4f8;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #fff;
+        }
+        h1 {
+            color: #3498db;
+            text-align: center;
+        }
+        h2 {
+            color: #2980b9;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Example Virtual Host</h1>
+        <p>This is the example virtual host running on port 8080 with server_name example.local.</p>
+        
+        <h2>Server Information</h2>
+        <ul>
+            <li>Port: 8080</li>
+            <li>Server Name: example.local</li>
+            <li>Root Directory: ./html/example</li>
+        </ul>
+        
+        <h2>Virtual Host Testing</h2>
+        <p>To test this virtual host, add the following line to your /etc/hosts file:</p>
+        <pre>127.0.0.1 example.local</pre>
+        <p>Then access <a href="http://example.local:8080">http://example.local:8080</a> in your browser.</p>
+    </div>
+</body>
+</html>

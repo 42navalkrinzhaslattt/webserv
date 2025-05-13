@@ -1,0 +1,4 @@
+http://localhost:8090/
+http://localhost:8090/static/
+http://localhost:8090/redirect
+http://localhost:8090/cgi-bin/test.py

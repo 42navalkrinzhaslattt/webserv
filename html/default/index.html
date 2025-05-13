@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to Webserv</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+        }
+        h2 {
+            color: #3498db;
+        }
+        ul {
+            padding-left: 20px;
+        }
+        li {
+            margin-bottom: 10px;
+        }
+        footer {
+            margin-top: 20px;
+            text-align: center;
+            font-size: 0.8em;
+            color: #777;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Welcome to Webserv</h1>
+        <p>This is a simple HTTP server implemented in C++98 according to the 42 project requirements.</p>
+        
+        <h2>Features</h2>
+        <ul>
+            <li>HTTP/1.1 compliant</li>
+            <li>Non-blocking I/O with poll()</li>
+            <li>Support for GET, POST, and DELETE methods</li>
+            <li>CGI script execution</li>
+            <li>File uploads</li>
+            <li>Custom error pages</li>
+            <li>Directory listing</li>
+        </ul>
+        
+        <h2>Test Links</h2>
+        <ul>
+            <li><a href="/static/example.html">Static file example</a></li>
+            <li><a href="/cgi-bin/info.py">CGI script example</a></li>
+            <li><a href="/upload">File upload example</a></li>
+            <li><a href="/redirect">Redirection example</a></li>
+            <li><a href="/nonexistent">404 error example</a></li>
+        </ul>
+        
+        <footer>
+            Webserv - HTTP/1.1 Server in C++98
+        </footer>
+    </div>
+</body>
+</html>

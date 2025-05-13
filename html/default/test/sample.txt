@@ -1,0 +1,4 @@
+This is a sample text file for testing the HTTP server.
+It should be served with the correct MIME type (text/plain).
+
+The server should handle various file types and serve them with the appropriate Content-Type header.

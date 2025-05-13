@@ -1,0 +1,7 @@
+This is a sample text document in the documents directory.
+
+This file is used to test the alias directive in the server configuration.
+When accessing /docs/sample.txt, this file should be served from the ./html/documents directory.
+
+The alias directive maps a URL path to a different directory than the server root.
+In this case, /docs is mapped to ./html/documents.
