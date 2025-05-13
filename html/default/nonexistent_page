@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Custom 404 Error Page</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            padding: 50px;
+            background-color: #f0f0f0;
+        }
+        h1 {
+            color: #ff6347;
+            font-size: 48px;
+        }
+        p {
+            color: #333;
+            font-size: 18px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Custom 404 Error Page</h1>
+    <p>This is a custom error page for 404 errors.</p>
+    <p>The page you requested could not be found.</p>
+</body>
+</html>
