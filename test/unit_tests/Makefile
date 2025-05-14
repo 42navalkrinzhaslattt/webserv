@@ -4,7 +4,14 @@ LDFLAGS =
 
 # All test sources
 SRCS = main.cpp \
-       HttpStatusTests.cpp
+       HttpStatusTests.cpp \
+       CGITests.cpp \
+       HttpMethodsTests.cpp \
+       FileUploadTests.cpp \
+       StatusCodeTests.cpp \
+       UnknownRequestTests.cpp \
+       PortConfigTests.cpp \
+       StressTests.cpp
 
 OBJS = $(SRCS:.cpp=.o)
 TARGET = webserv_tests

@@ -2,6 +2,7 @@
 
 #include <poll.h>
 #include <cstring>
+#include <unistd.h>
 
 void HttpServer::run() {
     log.info() << "Starting HTTP server" << std::endl;
@@ -39,7 +40,13 @@ void HttpServer::run() {
         for (std::set<int>::iterator it = _clientSockets.begin(); it != _clientSockets.end(); ++it) {
             struct pollfd clientPollFd;
             clientPollFd.fd = *it;
-            clientPollFd.events = POLLIN;
+            clientPollFd.events = POLLIN; // Always monitor for read events
+
+            // Also monitor for write events if there's pending data to write
+            if (_pendingWrites.find(*it) != _pendingWrites.end() && !_pendingWrites[*it].empty()) {
+                clientPollFd.events |= POLLOUT;
+            }
+
             clientPollFd.revents = 0;
             fds.push_back(clientPollFd);
         }
@@ -61,6 +68,7 @@ void HttpServer::run() {
 
         // Check for events
         for (size_t i = 0; i < fds.size(); ++i) {
+            // Check for read events
             if (fds[i].revents & POLLIN) {
                 // Check if this is a server socket
                 bool isServerSocket = false;
@@ -78,6 +86,44 @@ void HttpServer::run() {
                 } else {
                     // Client data
                     handleClientData(fds[i].fd);
+                }
+            }
+
+            // Check for write events
+            if (fds[i].revents & POLLOUT) {
+                int clientSocket = fds[i].fd;
+
+                // Check if there's pending data to write
+                if (_pendingWrites.find(clientSocket) != _pendingWrites.end() && !_pendingWrites[clientSocket].empty()) {
+                    // Send the pending data
+                    std::string &data = _pendingWrites[clientSocket];
+                    ssize_t bytesSent = send(clientSocket, data.c_str(), data.length(), 0);
+
+                    if (bytesSent <= 0) {
+                        log.error() << "Failed to send pending data to client" << std::endl;
+                        close(clientSocket);
+                        _clientSockets.erase(clientSocket);
+                        _pendingWrites.erase(clientSocket);
+                    } else if (static_cast<size_t>(bytesSent) < data.length()) {
+                        // Not all data was sent, keep the remaining data for the next write event
+                        data = data.substr(bytesSent);
+                    } else {
+                        // All data was sent, clear the pending data
+                        _pendingWrites.erase(clientSocket);
+                    }
+                }
+            }
+
+            // Check for errors
+            if (fds[i].revents & (POLLERR | POLLHUP | POLLNVAL)) {
+                int clientSocket = fds[i].fd;
+
+                // Check if this is a client socket
+                if (_clientSockets.find(clientSocket) != _clientSockets.end()) {
+                    log.error() << "Poll error on client socket: " << clientSocket << std::endl;
+                    close(clientSocket);
+                    _clientSockets.erase(clientSocket);
+                    _pendingWrites.erase(clientSocket);
                 }
             }
         }

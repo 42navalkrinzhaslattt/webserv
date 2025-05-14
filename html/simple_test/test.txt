@@ -1,0 +1,2 @@
+This is a simple test file.
+It will be used to test GET, POST, and DELETE requests.

@@ -3,12 +3,19 @@
 #include <unistd.h>
 
 void HttpServer::queueWrite(int clientSocket, const std::string &data) {
-    ssize_t bytesSent = send(clientSocket, data.c_str(), data.length(), 0);
-    if (bytesSent <= 0) {
-        log.error() << "Failed to send data to client" << std::endl;
-        close(clientSocket);
-        _clientSockets.erase(clientSocket);
+    // Add the data to the pending writes map
+    if (_pendingWrites.find(clientSocket) != _pendingWrites.end()) {
+        // Append to existing pending data
+        _pendingWrites[clientSocket] += data;
+    } else {
+        // Create new pending data
+        _pendingWrites[clientSocket] = data;
     }
+    log.debug() << "Queued " << data.length() << " bytes for client socket " << clientSocket << std::endl;
+}
+
+bool HttpServer::canWriteToSocket(int clientSocket) {
+    return _clientSockets.find(clientSocket) != _clientSockets.end();
 }
 
 void HttpServer::closeAllSockets() {

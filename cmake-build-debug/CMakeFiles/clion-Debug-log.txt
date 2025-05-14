@@ -1,1 +1,1 @@
-CMakeLists.txt not found in /Users/lap/CLionProjects/webserv2 Select CMakeLists.txt
+CMakeLists.txt not found in /Users/madvil2/Projects/webserv Select CMakeLists.txt

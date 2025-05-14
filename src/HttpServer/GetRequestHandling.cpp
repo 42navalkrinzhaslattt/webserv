@@ -42,7 +42,16 @@ void HttpServer::handleGetRequest(int clientSocket, const HttpRequest &request) 
 std::string HttpServer::determineDiskPath(const HttpRequest &request, const LocationCtx &location) {
     log.debug() << "Determining disk path for request path: " << request.path << std::endl;
 
-    std::string rootPath = "html/default";
+    // Get the root path from the location directives
+    std::string rootPath = "./";
+    if (directiveExists(location.second, "root")) {
+        rootPath = getFirstDirective(location.second, "root")[1];
+        log.debug() << "Found root directive: " << rootPath << std::endl;
+    } else if (directiveExists(_defaultLocation.second, "root")) {
+        // If not found in the location, check the default location
+        rootPath = getFirstDirective(_defaultLocation.second, "root")[1];
+        log.debug() << "Using default root directive: " << rootPath << std::endl;
+    }
     std::string locationPath = location.first;
     std::string requestPath = request.path;
 
@@ -67,6 +76,11 @@ std::string HttpServer::determineDiskPath(const HttpRequest &request, const Loca
     }
 
     // Default behavior: use root + request path
+    // If the location path is a prefix of the request path, remove it from the request path
+    if (Utils::isPrefix(locationPath, requestPath) && locationPath != "/") {
+        requestPath = requestPath.substr(locationPath.length());
+    }
+
     std::string diskPath = rootPath + requestPath;
     log.debug() << "Using root path: " << diskPath << std::endl;
     return diskPath;
@@ -75,7 +89,15 @@ std::string HttpServer::determineDiskPath(const HttpRequest &request, const Loca
 bool HttpServer::handleIndexes(int clientSocket, const std::string &diskPath, const HttpRequest &request, const LocationCtx &location) {
     log.debug() << "Trying to handle index files for directory: " << diskPath << std::endl;
 
+    // First check for index directives in the location
     ArgResults indexFiles = getAllDirectives(location.second, "index");
+
+    // If no index directives found in the location, check the default location
+    if (indexFiles.empty()) {
+        indexFiles = getAllDirectives(_defaultLocation.second, "index");
+        log.debug() << "No index directives in location, using default location index directives" << std::endl;
+    }
+
     log.debug() << "Found " << indexFiles.size() << " index directives" << std::endl;
 
     for (ArgResults::const_iterator it = indexFiles.begin(); it != indexFiles.end(); ++it) {

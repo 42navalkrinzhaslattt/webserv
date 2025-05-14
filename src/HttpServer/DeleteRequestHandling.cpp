@@ -25,13 +25,7 @@ void HttpServer::handleDeleteRequest(int clientSocket, const std::string &path, 
                                       "<p>The requested URL " + path + " was not found on this server.</p>"
                                       "</body></html>";
 
-        ssize_t bytesSent = send(clientSocket, notFoundResponse.c_str(), notFoundResponse.length(), 0);
-        if (bytesSent <= 0) {
-            log.error() << "Failed to send not found response to client" << std::endl;
-            close(clientSocket);
-            _clientSockets.erase(clientSocket);
-            return;
-        }
+        queueWrite(clientSocket, notFoundResponse);
 
         // Close connection if requested
         if (closeConnection) {
@@ -55,13 +49,7 @@ void HttpServer::handleDeleteRequest(int clientSocket, const std::string &path, 
                                       "<p>Cannot delete directory " + path + ".</p>"
                                       "</body></html>";
 
-        ssize_t bytesSent = send(clientSocket, forbiddenResponse.c_str(), forbiddenResponse.length(), 0);
-        if (bytesSent <= 0) {
-            log.error() << "Failed to send forbidden response to client" << std::endl;
-            close(clientSocket);
-            _clientSockets.erase(clientSocket);
-            return;
-        }
+        queueWrite(clientSocket, forbiddenResponse);
 
         // Close connection if requested
         if (closeConnection) {
@@ -85,13 +73,7 @@ void HttpServer::handleDeleteRequest(int clientSocket, const std::string &path, 
                                    "<p>An error occurred while deleting the file.</p>"
                                    "</body></html>";
 
-        ssize_t bytesSent = send(clientSocket, errorResponse.c_str(), errorResponse.length(), 0);
-        if (bytesSent <= 0) {
-            log.error() << "Failed to send error response to client" << std::endl;
-            close(clientSocket);
-            _clientSockets.erase(clientSocket);
-            return;
-        }
+        queueWrite(clientSocket, errorResponse);
     } else {
         // File deleted successfully, send 200 response
         std::string connectionHeader = closeConnection ? "close" : "keep-alive";
@@ -105,13 +87,7 @@ void HttpServer::handleDeleteRequest(int clientSocket, const std::string &path, 
                                     "<p>The file " + path + " was deleted successfully.</p>"
                                     "</body></html>";
 
-        ssize_t bytesSent = send(clientSocket, successResponse.c_str(), successResponse.length(), 0);
-        if (bytesSent <= 0) {
-            log.error() << "Failed to send success response to client" << std::endl;
-            close(clientSocket);
-            _clientSockets.erase(clientSocket);
-            return;
-        }
+        queueWrite(clientSocket, successResponse);
     }
 
     // Close connection if requested

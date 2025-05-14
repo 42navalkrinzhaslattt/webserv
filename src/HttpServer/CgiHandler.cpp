@@ -92,12 +92,7 @@ void HttpServer::executeCgi(int clientSocket, const std::string &path, const std
                                    "<p>No interpreter found for the requested CGI script.</p>"
                                    "</body></html>";
 
-        ssize_t bytesSent = send(clientSocket, errorResponse.c_str(), errorResponse.length(), 0);
-        if (bytesSent <= 0) {
-            log.error() << "Failed to send error response to client" << std::endl;
-            close(clientSocket);
-            _clientSockets.erase(clientSocket);
-        }
+        queueWrite(clientSocket, errorResponse);
         return;
     }
 
@@ -119,12 +114,7 @@ void HttpServer::executeCgi(int clientSocket, const std::string &path, const std
                                    "<p>Failed to create pipes for CGI execution.</p>"
                                    "</body></html>";
 
-        ssize_t bytesSent = send(clientSocket, errorResponse.c_str(), errorResponse.length(), 0);
-        if (bytesSent <= 0) {
-            log.error() << "Failed to send error response to client" << std::endl;
-            close(clientSocket);
-            _clientSockets.erase(clientSocket);
-        }
+        queueWrite(clientSocket, errorResponse);
         return;
     }
 
@@ -154,12 +144,7 @@ void HttpServer::executeCgi(int clientSocket, const std::string &path, const std
                                    "<p>Failed to fork for CGI execution.</p>"
                                    "</body></html>";
 
-        ssize_t bytesSent = send(clientSocket, errorResponse.c_str(), errorResponse.length(), 0);
-        if (bytesSent <= 0) {
-            log.error() << "Failed to send error response to client" << std::endl;
-            close(clientSocket);
-            _clientSockets.erase(clientSocket);
-        }
+        queueWrite(clientSocket, errorResponse);
         return;
     } else if (pid == 0) {
         // Child process
@@ -308,13 +293,7 @@ void HttpServer::executeCgi(int clientSocket, const std::string &path, const std
                                            "<p>The CGI script did not complete within the allowed time.</p>"
                                            "</body></html>";
 
-                ssize_t bytesSent = send(clientSocket, timeoutResponse.c_str(), timeoutResponse.length(), 0);
-                if (bytesSent <= 0) {
-                    log.error() << "Failed to send timeout response to client" << std::endl;
-                    close(clientSocket);
-                    _clientSockets.erase(clientSocket);
-                    return;
-                }
+                queueWrite(clientSocket, timeoutResponse);
                 return;
             }
 
@@ -337,13 +316,7 @@ void HttpServer::executeCgi(int clientSocket, const std::string &path, const std
                                        "<p>Failed to wait for CGI script completion.</p>"
                                        "</body></html>";
 
-            ssize_t bytesSent = send(clientSocket, errorResponse.c_str(), errorResponse.length(), 0);
-            if (bytesSent <= 0) {
-                log.error() << "Failed to send error response to client" << std::endl;
-                close(clientSocket);
-                _clientSockets.erase(clientSocket);
-                return;
-            }
+            queueWrite(clientSocket, errorResponse);
             return;
         }
 
@@ -390,13 +363,7 @@ void HttpServer::executeCgi(int clientSocket, const std::string &path, const std
 
             // Send the response
             std::string responseStr = response.str();
-            ssize_t bytesSent = send(clientSocket, responseStr.c_str(), responseStr.length(), 0);
-            if (bytesSent <= 0) {
-                log.error() << "Failed to send CGI response to client" << std::endl;
-                close(clientSocket);
-                _clientSockets.erase(clientSocket);
-                return;
-            }
+            queueWrite(clientSocket, responseStr);
         } else {
             // CGI script execution failed
             log.error() << "CGI script execution failed with status: " << WEXITSTATUS(status) << std::endl;
@@ -412,13 +379,7 @@ void HttpServer::executeCgi(int clientSocket, const std::string &path, const std
                                        "<p>CGI script execution failed.</p>"
                                        "</body></html>";
 
-            ssize_t bytesSent = send(clientSocket, errorResponse.c_str(), errorResponse.length(), 0);
-            if (bytesSent <= 0) {
-                log.error() << "Failed to send error response to client" << std::endl;
-                close(clientSocket);
-                _clientSockets.erase(clientSocket);
-                return;
-            }
+            queueWrite(clientSocket, errorResponse);
         }
     }
 }

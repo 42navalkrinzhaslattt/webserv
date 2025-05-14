@@ -18,13 +18,7 @@ void HttpServer::sendString(int clientSocket, const std::string &content, int st
     }
 
     std::string responseStr = response.str();
-    ssize_t bytesSent = send(clientSocket, responseStr.c_str(), responseStr.length(), 0);
-    if (bytesSent <= 0) {
-        log.error() << "Failed to send response to client" << std::endl;
-        close(clientSocket);
-        _clientSockets.erase(clientSocket);
-        return;
-    }
+    queueWrite(clientSocket, responseStr);
 }
 
 bool HttpServer::sendFileContent(int clientSocket, const std::string &filePath, const LocationCtx &location __attribute__((unused)), int statusCode, const std::string &contentType, bool headOnly, bool closeConnection) {
@@ -54,35 +48,23 @@ bool HttpServer::sendFileContent(int clientSocket, const std::string &filePath, 
             << "\r\n";
 
     std::string headersStr = headers.str();
-    ssize_t bytesSent = send(clientSocket, headersStr.c_str(), headersStr.length(), 0);
-    if (bytesSent <= 0) {
-        log.error() << "Failed to send headers to client" << std::endl;
-        close(clientSocket);
-        _clientSockets.erase(clientSocket);
-        return false;
-    }
+    queueWrite(clientSocket, headersStr);
 
     // Send file content if not HEAD request
     if (!headOnly) {
+        // Read the entire file into a string and queue it for writing
+        std::string fileContent;
+        fileContent.reserve(fileSize);
+
         std::vector<char> buffer(4096);
         while (file.read(&buffer[0], buffer.size())) {
-            ssize_t bytesSent = send(clientSocket, &buffer[0], file.gcount(), 0);
-            if (bytesSent <= 0) {
-                log.error() << "Failed to send file content to client" << std::endl;
-                close(clientSocket);
-                _clientSockets.erase(clientSocket);
-                return false;
-            }
+            fileContent.append(&buffer[0], file.gcount());
         }
         if (file.gcount() > 0) {
-            ssize_t bytesSent = send(clientSocket, &buffer[0], file.gcount(), 0);
-            if (bytesSent <= 0) {
-                log.error() << "Failed to send file content to client" << std::endl;
-                close(clientSocket);
-                _clientSockets.erase(clientSocket);
-                return false;
-            }
+            fileContent.append(&buffer[0], file.gcount());
         }
+
+        queueWrite(clientSocket, fileContent);
     }
 
     return true;
@@ -111,7 +93,19 @@ void HttpServer::sendError(int clientSocket, int statusCode, const LocationCtx *
 
     if (!errorPagePath.empty()) {
         // Serve custom error page
-        std::string diskPath = "html/default" + errorPagePath;
+        // Get the root path from the location
+        std::string rootPath = "./";
+        if (directiveExists(location->second, "root")) {
+            rootPath = getFirstDirective(location->second, "root")[1];
+        } else if (directiveExists(_defaultLocation.second, "root")) {
+            // If not found in the location, check the default location
+            rootPath = getFirstDirective(_defaultLocation.second, "root")[1];
+        }
+
+        // Construct the full path to the error page
+        std::string diskPath = rootPath + errorPagePath;
+        log.debug() << "Looking for error page at: " << diskPath << std::endl;
+
         std::ifstream file(diskPath.c_str());
         if (file.is_open()) {
             file.close();

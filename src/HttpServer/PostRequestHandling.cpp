@@ -7,8 +7,26 @@
 void HttpServer::handlePostRequest(int clientSocket, const std::string &request, const std::string &path, bool closeConnection) {
     log.info() << "Handling POST request for path: " << path << std::endl;
 
+    // Parse the HTTP request
+    HttpRequest httpRequest = parseHttpRequest(request);
+
+    // Get the location context for this request
+    const LocationCtx &location = requestToLocation(clientSocket, httpRequest);
+
+    // Check if the request body exceeds the maximum size
+    size_t contentLength = 0;
+    if (httpRequest.headers.find("Content-Length") != httpRequest.headers.end()) {
+        contentLength = atoi(httpRequest.headers["Content-Length"].c_str());
+
+        // Check if the content length exceeds the maximum allowed size
+        if (!checkRequestBodySize(clientSocket, httpRequest, contentLength)) {
+            // checkRequestBodySize will send the appropriate error response
+            return;
+        }
+    }
+
     // Check if this is a file upload request
-    if (path == "/upload" || path == "/upload/") {
+    if (path == "/upload" || path == "/upload/" || directiveExists(location.second, "upload_dir")) {
         // Check if the request is multipart/form-data
         if (request.find("Content-Type: multipart/form-data") != std::string::npos) {
             std::string boundary;
@@ -57,13 +75,7 @@ void HttpServer::handlePostRequest(int clientSocket, const std::string &request,
                                                             "<p><a href=\"/\">Back to home</a></p>"
                                                             "</body></html>";
 
-                                ssize_t bytesSent = send(clientSocket, successResponse.c_str(), successResponse.length(), 0);
-                                if (bytesSent <= 0) {
-                                    log.error() << "Failed to send success response to client" << std::endl;
-                                    close(clientSocket);
-                                    _clientSockets.erase(clientSocket);
-                                    return;
-                                }
+                                queueWrite(clientSocket, successResponse);
                             } else {
                                 // Error saving file
                                 log.error() << "Failed to save uploaded file: " << filePath << std::endl;
@@ -79,13 +91,7 @@ void HttpServer::handlePostRequest(int clientSocket, const std::string &request,
                                                          "<p>An error occurred while saving the uploaded file.</p>"
                                                          "</body></html>";
 
-                                ssize_t bytesSent = send(clientSocket, errorResponse.c_str(), errorResponse.length(), 0);
-                                if (bytesSent <= 0) {
-                                    log.error() << "Failed to send error response to client" << std::endl;
-                                    close(clientSocket);
-                                    _clientSockets.erase(clientSocket);
-                                    return;
-                                }
+                                queueWrite(clientSocket, errorResponse);
                             }
                         } else {
                             // No filename provided
@@ -102,13 +108,7 @@ void HttpServer::handlePostRequest(int clientSocket, const std::string &request,
                                                      "<p>No filename provided in upload request.</p>"
                                                      "</body></html>";
 
-                            ssize_t bytesSent = send(clientSocket, errorResponse.c_str(), errorResponse.length(), 0);
-                            if (bytesSent <= 0) {
-                                log.error() << "Failed to send error response to client" << std::endl;
-                                close(clientSocket);
-                                _clientSockets.erase(clientSocket);
-                                return;
-                            }
+                            queueWrite(clientSocket, errorResponse);
                         }
                     }
                 }
@@ -127,13 +127,7 @@ void HttpServer::handlePostRequest(int clientSocket, const std::string &request,
                                          "<p>No file field found in upload request.</p>"
                                          "</body></html>";
 
-                ssize_t bytesSent = send(clientSocket, errorResponse.c_str(), errorResponse.length(), 0);
-                if (bytesSent <= 0) {
-                    log.error() << "Failed to send error response to client" << std::endl;
-                    close(clientSocket);
-                    _clientSockets.erase(clientSocket);
-                    return;
-                }
+                queueWrite(clientSocket, errorResponse);
             }
         } else {
             // Not a multipart/form-data request
@@ -150,13 +144,7 @@ void HttpServer::handlePostRequest(int clientSocket, const std::string &request,
                                      "<p>Upload requests must use multipart/form-data encoding.</p>"
                                      "</body></html>";
 
-            ssize_t bytesSent = send(clientSocket, errorResponse.c_str(), errorResponse.length(), 0);
-            if (bytesSent <= 0) {
-                log.error() << "Failed to send error response to client" << std::endl;
-                close(clientSocket);
-                _clientSockets.erase(clientSocket);
-                return;
-            }
+            queueWrite(clientSocket, errorResponse);
         }
     } else {
         // Not an upload path
@@ -173,13 +161,7 @@ void HttpServer::handlePostRequest(int clientSocket, const std::string &request,
                                  "<p>POST requests are only allowed at /upload.</p>"
                                  "</body></html>";
 
-        ssize_t bytesSent = send(clientSocket, errorResponse.c_str(), errorResponse.length(), 0);
-        if (bytesSent <= 0) {
-            log.error() << "Failed to send error response to client" << std::endl;
-            close(clientSocket);
-            _clientSockets.erase(clientSocket);
-            return;
-        }
+        queueWrite(clientSocket, errorResponse);
     }
 
     // Close connection if requested

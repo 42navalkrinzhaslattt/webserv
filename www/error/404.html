@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>404 - Page Not Found</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        .error-container {
+            text-align: center;
+            padding: 50px 0;
+        }
+        .error-code {
+            font-size: 120px;
+            color: #e74c3c;
+            margin-bottom: 20px;
+        }
+        .error-message {
+            font-size: 24px;
+            margin-bottom: 30px;
+        }
+        .back-home {
+            display: inline-block;
+            background-color: #0066cc;
+            color: white;
+            padding: 10px 20px;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .back-home:hover {
+            background-color: #0055aa;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Webserv Test Site</h1>
+        <nav>
+            <ul>
+                <li><a href="/">Home</a></li>
+                <li><a href="/static/pages/about.html">About</a></li>
+                <li><a href="/static/pages/contact.html">Contact</a></li>
+                <li><a href="/static/redirects/redirect.html">Redirect Test</a></li>
+                <li><a href="/nonexistent.html">404 Test</a></li>
+                <li><a href="/static">Directory Listing Test</a></li>
+            </ul>
+        </nav>
+    </header>
+    
+    <main>
+        <div class="error-container">
+            <div class="error-code">404</div>
+            <div class="error-message">Oops! Page Not Found</div>
+            <p>The page you are looking for might have been removed, had its name changed, or is temporarily unavailable.</p>
+            <a href="/" class="back-home">Back to Home</a>
+        </div>
+    </main>
+    
+    <footer>
+        <p>&copy; 2023 Webserv Test Site</p>
+    </footer>
+</body>
+</html>

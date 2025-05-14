@@ -10,6 +10,8 @@
 #include <fstream>
 #include <sstream>
 #include <sys/socket.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
 
 // Forward declarations
 class DirectoryIndexer;
@@ -62,6 +64,7 @@ private:
 
     // Socket management methods
     void queueWrite(int clientSocket, const std::string &data);
+    bool canWriteToSocket(int clientSocket);
     void closeAllSockets();
     bool setNonBlocking(int socket);
     bool setReuseAddr(int socket);
@@ -77,6 +80,9 @@ private:
     std::string getCgiInterpreter(const std::string &path);
     void executeCgi(int clientSocket, const std::string &path, const std::string &method, const std::string &query, const std::string &body, bool closeConnection = true);
     std::map<std::string, std::string> buildCgiEnvironment(const std::string &path, const std::string &method, const std::string &query, size_t contentLength);
+
+    // Status text handling methods
+    std::string getStatusText(int statusCode);
 
     // Configuration methods
     bool directiveExists(const std::vector<Arguments> &directives, const std::string &name) const;
@@ -120,7 +126,6 @@ private:
 
     // Status text handling methods
     void initStatusTexts();
-    std::string getStatusText(int statusCode);
 
     Logger &log;
     std::string _httpVersionString;
@@ -138,6 +143,9 @@ private:
 
     // Client sockets
     std::set<int> _clientSockets;
+
+    // Pending writes for client sockets
+    std::map<int, std::string> _pendingWrites;
 
     // Server state
     bool _running;

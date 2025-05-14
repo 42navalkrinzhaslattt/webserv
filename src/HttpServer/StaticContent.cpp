@@ -47,13 +47,7 @@ bool HttpServer::serveStaticFile(int clientSocket, const std::string &path, cons
                                          "Connection: " + connectionHeader + "\r\n"
                                          "\r\n";
 
-            ssize_t bytesSent = send(clientSocket, redirectResponse.c_str(), redirectResponse.length(), 0);
-            if (bytesSent <= 0) {
-                log.error() << "Failed to send redirect response to client" << std::endl;
-                close(clientSocket);
-                _clientSockets.erase(clientSocket);
-                return false;
-            }
+            queueWrite(clientSocket, redirectResponse);
             return true;
         }
 

@@ -94,13 +94,7 @@ void HttpServer::handleClientData(int clientSocket) {
                                              "<p>The requested method is not allowed for the URL " + path + ".</p>"
                                              "</body></html>";
 
-        ssize_t bytesSent = send(clientSocket, methodNotAllowedResponse.c_str(), methodNotAllowedResponse.length(), 0);
-        if (bytesSent <= 0) {
-            log.error() << "Failed to send method not allowed response to client" << std::endl;
-            close(clientSocket);
-            _clientSockets.erase(clientSocket);
-            return;
-        }
+        queueWrite(clientSocket, methodNotAllowedResponse);
     }
 
     // Close connection if requested by client

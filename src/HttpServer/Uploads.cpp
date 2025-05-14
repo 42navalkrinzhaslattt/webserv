@@ -159,8 +159,19 @@ bool HttpServer::checkRequestBodySize(int clientSocket, const HttpRequest &reque
 
     // Get client_max_body_size directive
     const LocationCtx &location = requestToLocation(clientSocket, request);
-    std::string maxBodySizeStr = getFirstDirective(location.second, "client_max_body_size")[0];
-    size_t maxBodySize = Utils::convertSizeToBytes(maxBodySizeStr);
+
+    // Check if the location has a client_max_body_size directive
+    size_t maxBodySize = 10 * 1024 * 1024; // Default: 10MB
+    if (directiveExists(location.second, "client_max_body_size")) {
+        std::string maxBodySizeStr = getFirstDirective(location.second, "client_max_body_size")[1];
+        log.debug() << "Found client_max_body_size directive in location: " << maxBodySizeStr << std::endl;
+        maxBodySize = Utils::convertSizeToBytes(maxBodySizeStr);
+    } else if (directiveExists(_defaultLocation.second, "client_max_body_size")) {
+        // If not found in the location, check the default location
+        std::string maxBodySizeStr = getFirstDirective(_defaultLocation.second, "client_max_body_size")[1];
+        log.debug() << "Using default client_max_body_size directive: " << maxBodySizeStr << std::endl;
+        maxBodySize = Utils::convertSizeToBytes(maxBodySizeStr);
+    }
 
     log.debug() << "Maximum body size allowed: " << repr(maxBodySize) << " bytes" << std::endl;
 
@@ -178,8 +189,16 @@ bool HttpServer::checkRequestBodySize(int clientSocket, const HttpRequest &reque
 void HttpServer::handleDelete(int clientSocket, const std::string &path) {
     log.debug() << "Handling DELETE request for path: " << repr(path) << std::endl;
 
-    // Construct the file path
-    std::string filePath = "html/default" + path;
+    // Parse the HTTP request to get the location
+    HttpRequest request;
+    request.method = "DELETE";
+    request.path = path;
+
+    // Get the location context for this request
+    const LocationCtx &location = requestToLocation(clientSocket, request);
+
+    // Determine the disk path for the requested resource
+    std::string filePath = determineDiskPath(request, location);
 
     // Check if file exists
     struct stat fileStat;
@@ -195,13 +214,7 @@ void HttpServer::handleDelete(int clientSocket, const std::string &path) {
                                       "<p>The requested URL " + path + " was not found on this server.</p>"
                                       "</body></html>";
 
-        ssize_t bytesSent = send(clientSocket, notFoundResponse.c_str(), notFoundResponse.length(), 0);
-        if (bytesSent <= 0) {
-            log.error() << "Failed to send not found response to client" << std::endl;
-            close(clientSocket);
-            _clientSockets.erase(clientSocket);
-            return;
-        }
+        queueWrite(clientSocket, notFoundResponse);
         return;
     }
 
@@ -218,13 +231,7 @@ void HttpServer::handleDelete(int clientSocket, const std::string &path) {
                                       "<p>Cannot delete directory " + path + ".</p>"
                                       "</body></html>";
 
-        ssize_t bytesSent = send(clientSocket, forbiddenResponse.c_str(), forbiddenResponse.length(), 0);
-        if (bytesSent <= 0) {
-            log.error() << "Failed to send forbidden response to client" << std::endl;
-            close(clientSocket);
-            _clientSockets.erase(clientSocket);
-            return;
-        }
+        queueWrite(clientSocket, forbiddenResponse);
         return;
     }
 
@@ -241,13 +248,7 @@ void HttpServer::handleDelete(int clientSocket, const std::string &path) {
                                    "<p>An error occurred while deleting the file.</p>"
                                    "</body></html>";
 
-        ssize_t bytesSent = send(clientSocket, errorResponse.c_str(), errorResponse.length(), 0);
-        if (bytesSent <= 0) {
-            log.error() << "Failed to send error response to client" << std::endl;
-            close(clientSocket);
-            _clientSockets.erase(clientSocket);
-            return;
-        }
+        queueWrite(clientSocket, errorResponse);
     } else {
         // File deleted successfully, send 200 response
         std::string successResponse = "HTTP/1.1 200 OK\r\n"
@@ -260,26 +261,30 @@ void HttpServer::handleDelete(int clientSocket, const std::string &path) {
                                     "<p>The file " + path + " was deleted successfully.</p>"
                                     "</body></html>";
 
-        ssize_t bytesSent = send(clientSocket, successResponse.c_str(), successResponse.length(), 0);
-        if (bytesSent <= 0) {
-            log.error() << "Failed to send success response to client" << std::endl;
-            close(clientSocket);
-            _clientSockets.erase(clientSocket);
-            return;
-        }
+        queueWrite(clientSocket, successResponse);
     }
 }
 
 void HttpServer::handleUpload(int clientSocket, const std::string &request, const std::string &path) {
     log.info() << "Handling POST request for path: " << path << std::endl;
 
-    // Create a dummy HttpRequest to get the location context
-    HttpRequest dummyRequest;
-    dummyRequest.method = "POST";
-    dummyRequest.path = path;
+    // Parse the HTTP request
+    HttpRequest httpRequest = parseHttpRequest(request);
 
     // Get the location context for this request
-    const LocationCtx &location = requestToLocation(clientSocket, dummyRequest);
+    const LocationCtx &location = requestToLocation(clientSocket, httpRequest);
+
+    // Check if the request body exceeds the maximum size
+    size_t contentLength = 0;
+    if (httpRequest.headers.find("Content-Length") != httpRequest.headers.end()) {
+        contentLength = atoi(httpRequest.headers["Content-Length"].c_str());
+
+        // Check if the content length exceeds the maximum allowed size
+        if (!checkRequestBodySize(clientSocket, httpRequest, contentLength)) {
+            // checkRequestBodySize will send the appropriate error response
+            return;
+        }
+    }
 
     // Check if this is a file upload request (location has upload_dir directive)
     if (directiveExists(location.second, "upload_dir")) {
@@ -340,12 +345,7 @@ void HttpServer::handleUpload(int clientSocket, const std::string &request, cons
                                              "<p>The request body exceeds the maximum allowed size.</p>"
                                              "</body></html>";
 
-                    ssize_t bytesSent = send(clientSocket, errorResponse.c_str(), errorResponse.length(), 0);
-                    if (bytesSent <= 0) {
-                        log.error() << "Failed to send error response to client" << std::endl;
-                        close(clientSocket);
-                        _clientSockets.erase(clientSocket);
-                    }
+                    queueWrite(clientSocket, errorResponse);
                     return;
                 }
             }
@@ -516,13 +516,7 @@ void HttpServer::handleUpload(int clientSocket, const std::string &request, cons
                                          "<p>No file field found in upload request.</p>"
                                          "</body></html>";
 
-                ssize_t bytesSent = send(clientSocket, errorResponse.c_str(), errorResponse.length(), 0);
-                if (bytesSent <= 0) {
-                    log.error() << "Failed to send error response to client" << std::endl;
-                    close(clientSocket);
-                    _clientSockets.erase(clientSocket);
-                    return;
-                }
+                queueWrite(clientSocket, errorResponse);
             }
         } else {
             // Not a multipart/form-data request
@@ -538,13 +532,7 @@ void HttpServer::handleUpload(int clientSocket, const std::string &request, cons
                                      "<p>Upload requests must use multipart/form-data encoding.</p>"
                                      "</body></html>";
 
-            ssize_t bytesSent = send(clientSocket, errorResponse.c_str(), errorResponse.length(), 0);
-            if (bytesSent <= 0) {
-                log.error() << "Failed to send error response to client" << std::endl;
-                close(clientSocket);
-                _clientSockets.erase(clientSocket);
-                return;
-            }
+            queueWrite(clientSocket, errorResponse);
         }
     } else {
         // Not an upload path (no upload_dir directive)
@@ -560,13 +548,7 @@ void HttpServer::handleUpload(int clientSocket, const std::string &request, cons
                                  "<p>POST requests are only allowed at paths with upload_dir directive.</p>"
                                  "</body></html>";
 
-        ssize_t bytesSent = send(clientSocket, errorResponse.c_str(), errorResponse.length(), 0);
-        if (bytesSent <= 0) {
-            log.error() << "Failed to send error response to client" << std::endl;
-            close(clientSocket);
-            _clientSockets.erase(clientSocket);
-            return;
-        }
+        queueWrite(clientSocket, errorResponse);
     }
 }
 

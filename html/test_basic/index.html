@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Webserv Test Page</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            color: #333;
+        }
+        .test-section {
+            margin-bottom: 30px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .test-section h2 {
+            margin-top: 0;
+        }
+        pre {
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        form {
+            margin-top: 15px;
+        }
+        button, input[type="submit"] {
+            padding: 8px 15px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover, input[type="submit"]:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <h1>Webserv Test Page</h1>
+    
+    <div class="test-section">
+        <h2>GET Request Test</h2>
+        <p>This page was loaded using a GET request.</p>
+        <p>You can also try to GET a non-existent page to test 404 handling:</p>
+        <pre>curl -i http://localhost:8080/nonexistent.html</pre>
+    </div>
+    
+    <div class="test-section">
+        <h2>POST Request Test</h2>
+        <p>Use this form to test a POST request:</p>
+        <form action="/upload" method="post" enctype="multipart/form-data">
+            <input type="file" name="file" required>
+            <input type="submit" value="Upload File">
+        </form>
+        <p>Or use curl:</p>
+        <pre>curl -X POST -F "file=@/path/to/your/file.txt" http://localhost:8080/upload</pre>
+    </div>
+    
+    <div class="test-section">
+        <h2>DELETE Request Test</h2>
+        <p>Use curl to test a DELETE request:</p>
+        <pre>curl -X DELETE -i http://localhost:8080/uploads/file_to_delete.txt</pre>
+    </div>
+    
+    <div class="test-section">
+        <h2>Unknown Method Test</h2>
+        <p>Use curl to test an unknown method:</p>
+        <pre>curl -X UNKNOWN -i http://localhost:8080/</pre>
+    </div>
+    
+    <div class="test-section">
+        <h2>Uploaded Files</h2>
+        <p>View your uploaded files:</p>
+        <a href="/uploads">Browse Uploads</a>
+    </div>
+</body>
+</html>

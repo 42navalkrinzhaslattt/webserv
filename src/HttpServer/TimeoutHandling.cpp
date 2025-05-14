@@ -63,7 +63,7 @@ void HttpServer::checkTimeouts() {
                                      "</body></html>";
 
         // Even if send fails, we still need to close the connection for a timeout
-        send(clientSocket, timeoutResponse.c_str(), timeoutResponse.length(), 0);
+        queueWrite(clientSocket, timeoutResponse);
 
         // Close the connection
         close(clientSocket);

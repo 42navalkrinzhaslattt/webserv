@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Redirect Test - Webserv Test Site</title>
+    <meta http-equiv="refresh" content="3;url=/static/pages/about.html">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <header>
+        <h1>Redirect Test</h1>
+        <nav>
+            <ul>
+                <li><a href="/">Home</a></li>
+                <li><a href="/static/pages/about.html">About</a></li>
+                <li><a href="/static/pages/contact.html">Contact</a></li>
+                <li><a href="/static/redirects/redirect.html">Redirect Test</a></li>
+                <li><a href="/nonexistent.html">404 Test</a></li>
+                <li><a href="/static">Directory Listing Test</a></li>
+            </ul>
+        </nav>
+    </header>
+    
+    <main>
+        <section>
+            <h2>Redirect Test</h2>
+            <p>This page will redirect to the About page in 3 seconds...</p>
+            <p>If you're still seeing this message after 3 seconds, the redirect may not be working properly.</p>
+            <p>You can also <a href="/static/pages/about.html">click here</a> to go to the About page manually.</p>
+        </section>
+    </main>
+    
+    <footer>
+        <p>&copy; 2023 Webserv Test Site</p>
+    </footer>
+</body>
+</html>

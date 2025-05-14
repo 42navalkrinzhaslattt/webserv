@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>CGI Test Page</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            color: #333;
+        }
+        .test-section {
+            margin-bottom: 30px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .test-section h2 {
+            margin-top: 0;
+        }
+        pre {
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        form {
+            margin-top: 15px;
+        }
+        button, input[type="submit"] {
+            padding: 8px 15px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover, input[type="submit"]:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <h1>CGI Test Page</h1>
+    
+    <div class="test-section">
+        <h2>GET Request Test</h2>
+        <p>Test a simple GET request to a CGI script:</p>
+        <a href="/cgi-bin/hello.py">Run hello.py</a>
+        <p>Test a GET request with query parameters:</p>
+        <a href="/cgi-bin/hello.py?name=John&age=30">Run hello.py with parameters</a>
+    </div>
+    
+    <div class="test-section">
+        <h2>POST Request Test</h2>
+        <p>Test a POST request to a CGI script:</p>
+        <form action="/cgi-bin/post.py" method="post">
+            <label for="name">Name:</label>
+            <input type="text" id="name" name="name" value="John Doe"><br><br>
+            <label for="message">Message:</label><br>
+            <textarea id="message" name="message" rows="4" cols="50">This is a test message.</textarea><br><br>
+            <input type="submit" value="Submit">
+        </form>
+    </div>
+    
+    <div class="test-section">
+        <h2>File Access Test</h2>
+        <p>Test file access in the CGI script's directory:</p>
+        <a href="/cgi-bin/file_access.py">Run file_access.py</a>
+    </div>
+    
+    <div class="test-section">
+        <h2>Error Handling Tests</h2>
+        <p>Test a CGI script that generates an error:</p>
+        <a href="/cgi-bin/error.py">Run error.py</a>
+        <p>Test a CGI script with an infinite loop:</p>
+        <a href="/cgi-bin/infinite_loop.py">Run infinite_loop.py</a>
+        <p>Test a CGI script with invalid HTTP headers:</p>
+        <a href="/cgi-bin/invalid_headers.py">Run invalid_headers.py</a>
+    </div>
+</body>
+</html>
