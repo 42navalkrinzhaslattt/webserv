@@ -1,7 +1,6 @@
 #include "HttpServer.hpp"
 #include <unistd.h>
 #include <fcntl.h>
-#include <errno.h>
 #include <string.h>
 #include <poll.h>
 
@@ -17,18 +16,14 @@ void HttpServer::queueWrite(int clientSocket, const std::string &data) {
     if (_pendingWrites.find(clientSocket) == _pendingWrites.end() || _pendingWrites[clientSocket].empty()) {
         ssize_t bytesSent = send(clientSocket, data.c_str(), data.length(), MSG_NOSIGNAL);
 
-        if (bytesSent < 0) {
-            // Check if the error is because the socket would block
-            if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                // Socket would block, queue the entire data
-                _pendingWrites[clientSocket] = data;
-                log.debug() << "Socket would block, queued " << data.length() << " bytes for client socket " << clientSocket << std::endl;
-            } else {
-                // Other error, close the socket
-                log.error() << "Failed to send data to client: " << strerror(errno) << std::endl;
-                close(clientSocket);
-                _clientSockets.erase(clientSocket);
-                _pendingWrites.erase(clientSocket);
+        if (bytesSent <= 0) {
+            // Error or connection closed, queue the data for later or close the socket
+            _pendingWrites[clientSocket] = data;
+            log.debug() << "Socket would block or error, queued " << data.length() << " bytes for client socket " << clientSocket << std::endl;
+
+            // If it's a serious error (not just would block), we'll handle it in the poll loop
+            if (bytesSent < 0) {
+                log.error() << "Failed to send data to client" << std::endl;
             }
         } else if (static_cast<size_t>(bytesSent) < data.length()) {
             // Not all data was sent, queue the remaining data
@@ -95,11 +90,7 @@ void HttpServer::run() {
         int pollResult = poll(&fds[0], fds.size(), 100); // 100 milliseconds timeout
 
         if (pollResult < 0) {
-            if (errno == EINTR) {
-                // Interrupted by signal, continue
-                continue;
-            }
-            log.error() << "Poll error occurred: " << strerror(errno) << std::endl;
+            log.error() << "Poll error occurred" << std::endl;
             break;
         }
 
@@ -169,17 +160,17 @@ void HttpServer::run() {
                     ssize_t bytesSent = send(clientSocket, data.c_str(), data.length(), MSG_NOSIGNAL);
 
                     if (bytesSent <= 0) {
-                        // Check if the error is because the socket would block
-                        if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                            // Socket would block, try again later
-                            log.debug() << "Socket would block, will try again later" << std::endl;
+                        // Error or connection closed, handle appropriately
+                        if (bytesSent == 0) {
+                            log.info() << "Client closed connection during write" << std::endl;
                         } else {
-                            // Other error, close the socket
-                            log.error() << "Failed to send pending data to client: " << strerror(errno) << std::endl;
-                            close(clientSocket);
-                            _clientSockets.erase(clientSocket);
-                            _pendingWrites.erase(clientSocket);
+                            log.error() << "Failed to send pending data to client" << std::endl;
                         }
+                        // Close the socket and clean up
+                        close(clientSocket);
+                        _clientSockets.erase(clientSocket);
+                        _pendingWrites.erase(clientSocket);
+                        _clientLastActivity.erase(clientSocket);
                     } else if (static_cast<size_t>(bytesSent) < data.length()) {
                         // Not all data was sent, keep the remaining data for the next write event
                         data = data.substr(bytesSent);

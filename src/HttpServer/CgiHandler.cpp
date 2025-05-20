@@ -190,7 +190,10 @@ void HttpServer::executeCgi(int clientSocket, const std::string &path, const std
 
         // Write request body to the CGI script's stdin if needed
         if (!body.empty()) {
-            write(inputPipe[1], body.c_str(), body.length());
+            ssize_t bytesWritten = write(inputPipe[1], body.c_str(), body.length());
+            if (bytesWritten <= 0) {
+                log.error() << "Failed to write to CGI input pipe" << std::endl;
+            }
         }
         close(inputPipe[1]); // Close write end after writing
 

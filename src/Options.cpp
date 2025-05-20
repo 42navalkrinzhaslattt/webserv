@@ -21,6 +21,9 @@ Options::Options(int ac, char **av)
             configPath = av[++i];
         } else if (strcmp(av[i], "-l") == 0 && i + 1 < ac) {
             logLevel = av[++i];
+        } else if (av[i][0] != '-') {
+            // Если аргумент не начинается с '-', считаем его путем к конфигурационному файлу
+            configPath = av[i];
         } else {
             std::cerr << "Unknown option: " << av[i] << std::endl;
             printHelp = true;

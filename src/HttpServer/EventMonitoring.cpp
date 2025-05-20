@@ -97,13 +97,19 @@ void HttpServer::run() {
                 if (_pendingWrites.find(clientSocket) != _pendingWrites.end() && !_pendingWrites[clientSocket].empty()) {
                     // Send the pending data
                     std::string &data = _pendingWrites[clientSocket];
-                    ssize_t bytesSent = send(clientSocket, data.c_str(), data.length(), 0);
+                    ssize_t bytesSent = send(clientSocket, data.c_str(), data.length(), MSG_NOSIGNAL);
 
                     if (bytesSent <= 0) {
-                        log.error() << "Failed to send pending data to client" << std::endl;
+                        if (bytesSent == 0) {
+                            log.info() << "Client closed connection during write" << std::endl;
+                        } else {
+                            log.error() << "Failed to send pending data to client" << std::endl;
+                        }
+                        // Close the socket and clean up
                         close(clientSocket);
                         _clientSockets.erase(clientSocket);
                         _pendingWrites.erase(clientSocket);
+                        _clientLastActivity.erase(clientSocket);
                     } else if (static_cast<size_t>(bytesSent) < data.length()) {
                         // Not all data was sent, keep the remaining data for the next write event
                         data = data.substr(bytesSent);

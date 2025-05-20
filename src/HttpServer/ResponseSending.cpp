@@ -71,17 +71,31 @@ bool HttpServer::sendFileContent(int clientSocket, const std::string &filePath, 
 }
 
 void HttpServer::sendError(int clientSocket, int statusCode, const LocationCtx *location, bool closeConnection) {
+    log.debug() << "Sending error response for status code: " << statusCode << std::endl;
+
     // Check if custom error page is defined
     std::string errorPagePath;
-    if (location != NULL) {
-        std::ostringstream errorCodeStr;
-        errorCodeStr << statusCode;
+    std::ostringstream errorCodeStr;
+    errorCodeStr << statusCode;
 
+    log.debug() << "Looking for error_page directive for status code: " << statusCode << std::endl;
+
+    // First check in the provided location
+    if (location != NULL) {
         ArgResults errorPages = getAllDirectives(location->second, "error_page");
+        log.debug() << "Found " << errorPages.size() << " error_page directives in location" << std::endl;
+
         for (ArgResults::const_iterator it = errorPages.begin(); it != errorPages.end(); ++it) {
+            log.debug() << "Checking error_page directive with " << it->size() << " arguments" << std::endl;
+
+            for (size_t i = 0; i < it->size(); ++i) {
+                log.debug() << "  Arg[" << i << "] = '" << (*it)[i] << "'" << std::endl;
+            }
+
             for (size_t i = 0; i < it->size() - 1; ++i) {
                 if ((*it)[i] == errorCodeStr.str()) {
                     errorPagePath = (*it)[it->size() - 1];
+                    log.debug() << "Found error page path for status code " << statusCode << ": " << errorPagePath << std::endl;
                     break;
                 }
             }
@@ -89,6 +103,35 @@ void HttpServer::sendError(int clientSocket, int statusCode, const LocationCtx *
                 break;
             }
         }
+    }
+
+    // If not found in the location, check in the default location
+    if (errorPagePath.empty()) {
+        ArgResults errorPages = getAllDirectives(_defaultLocation.second, "error_page");
+        log.debug() << "Found " << errorPages.size() << " error_page directives in default location" << std::endl;
+
+        for (ArgResults::const_iterator it = errorPages.begin(); it != errorPages.end(); ++it) {
+            log.debug() << "Checking error_page directive with " << it->size() << " arguments" << std::endl;
+
+            for (size_t i = 0; i < it->size(); ++i) {
+                log.debug() << "  Arg[" << i << "] = '" << (*it)[i] << "'" << std::endl;
+            }
+
+            for (size_t i = 0; i < it->size() - 1; ++i) {
+                if ((*it)[i] == errorCodeStr.str()) {
+                    errorPagePath = (*it)[it->size() - 1];
+                    log.debug() << "Found error page path for status code " << statusCode << ": " << errorPagePath << " in default location" << std::endl;
+                    break;
+                }
+            }
+            if (!errorPagePath.empty()) {
+                break;
+            }
+        }
+    }
+
+    if (errorPagePath.empty()) {
+        log.debug() << "No custom error page found for status code " << statusCode << std::endl;
     }
 
     if (!errorPagePath.empty()) {
@@ -103,14 +146,32 @@ void HttpServer::sendError(int clientSocket, int statusCode, const LocationCtx *
         }
 
         // Construct the full path to the error page
-        std::string diskPath = rootPath + errorPagePath;
+        std::string diskPath;
+
+        // Handle paths that start with /
+        if (!errorPagePath.empty() && errorPagePath[0] == '/') {
+            diskPath = rootPath + "/" + errorPagePath.substr(1);
+        } else {
+            diskPath = rootPath + "/" + errorPagePath;
+        }
+
+        // Fix any double slashes
+        size_t pos = diskPath.find("//");
+        while (pos != std::string::npos) {
+            diskPath.replace(pos, 2, "/");
+            pos = diskPath.find("//");
+        }
+
         log.debug() << "Looking for error page at: " << diskPath << std::endl;
 
         std::ifstream file(diskPath.c_str());
         if (file.is_open()) {
             file.close();
+            log.debug() << "Found custom error page, sending it" << std::endl;
             sendFileContent(clientSocket, diskPath, *location, statusCode, "", false, closeConnection);
             return;
+        } else {
+            log.debug() << "Custom error page not found at: " << diskPath << std::endl;
         }
     }
 

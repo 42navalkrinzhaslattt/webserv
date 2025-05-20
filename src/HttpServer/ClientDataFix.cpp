@@ -2,7 +2,6 @@
 #include <cstring>
 #include <sys/stat.h>
 #include <unistd.h>
-#include <errno.h>
 
 // Improved version of handleClientData that handles more requests
 void HttpServer::handleClientData(int clientSocket) {
@@ -14,13 +13,7 @@ void HttpServer::handleClientData(int clientSocket) {
         if (bytesRead == 0) {
             log.info() << "Client disconnected (socket " << clientSocket << ")" << std::endl;
         } else {
-            // Check if the error is because the socket would block
-            if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                // Socket would block, try again later
-                return;
-            }
-
-            log.error() << "Error reading from client (socket " << clientSocket << "): " << strerror(errno) << std::endl;
+            log.error() << "Error reading from client (socket " << clientSocket << ")" << std::endl;
         }
 
         close(clientSocket);

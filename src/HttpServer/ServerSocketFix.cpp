@@ -5,7 +5,6 @@
 #include <fcntl.h>
 #include <cstring>
 #include <unistd.h>
-#include <errno.h>
 
 // Improved version of setupServerSocket that handles more connections
 bool HttpServer::setupServerSocket() {
@@ -15,13 +14,13 @@ bool HttpServer::setupServerSocket() {
         // Create socket
         it->socket = socket(AF_INET, SOCK_STREAM, 0);
         if (it->socket < 0) {
-            log.error() << "Failed to create socket for " << it->address << ":" << it->port << ": " << strerror(errno) << std::endl;
+            log.error() << "Failed to create socket for " << it->address << ":" << it->port << std::endl;
             continue;
         }
 
         // Set socket options for reuse
         if (!setReuseAddr(it->socket)) {
-            log.error() << "Failed to set SO_REUSEADDR for " << it->address << ":" << it->port << ": " << strerror(errno) << std::endl;
+            log.error() << "Failed to set SO_REUSEADDR for " << it->address << ":" << it->port << std::endl;
             close(it->socket);
             it->socket = -1;
             continue;
@@ -30,13 +29,13 @@ bool HttpServer::setupServerSocket() {
         // Set TCP_NODELAY to disable Nagle's algorithm
         int flag = 1;
         if (setsockopt(it->socket, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(flag)) < 0) {
-            log.error() << "Failed to set TCP_NODELAY for " << it->address << ":" << it->port << ": " << strerror(errno) << std::endl;
+            log.error() << "Failed to set TCP_NODELAY for " << it->address << ":" << it->port << std::endl;
             // Not critical, continue anyway
         }
 
         // Set non-blocking mode
         if (!setNonBlocking(it->socket)) {
-            log.error() << "Failed to set non-blocking mode for " << it->address << ":" << it->port << ": " << strerror(errno) << std::endl;
+            log.error() << "Failed to set non-blocking mode for " << it->address << ":" << it->port << std::endl;
             close(it->socket);
             it->socket = -1;
             continue;
@@ -45,14 +44,14 @@ bool HttpServer::setupServerSocket() {
         // Increase socket buffer sizes
         int recvBufSize = 262144; // 256KB
         int sendBufSize = 262144; // 256KB
-        
+
         if (setsockopt(it->socket, SOL_SOCKET, SO_RCVBUF, &recvBufSize, sizeof(recvBufSize)) < 0) {
-            log.error() << "Failed to set receive buffer size for " << it->address << ":" << it->port << ": " << strerror(errno) << std::endl;
+            log.error() << "Failed to set receive buffer size for " << it->address << ":" << it->port << std::endl;
             // Not critical, continue anyway
         }
-        
+
         if (setsockopt(it->socket, SOL_SOCKET, SO_SNDBUF, &sendBufSize, sizeof(sendBufSize)) < 0) {
-            log.error() << "Failed to set send buffer size for " << it->address << ":" << it->port << ": " << strerror(errno) << std::endl;
+            log.error() << "Failed to set send buffer size for " << it->address << ":" << it->port << std::endl;
             // Not critical, continue anyway
         }
 
@@ -64,7 +63,7 @@ bool HttpServer::setupServerSocket() {
         address.sin_port = htons(it->port);
 
         if (bind(it->socket, (struct sockaddr *)&address, sizeof(address)) < 0) {
-            log.error() << "Failed to bind socket for " << it->address << ":" << it->port << ": " << strerror(errno) << std::endl;
+            log.error() << "Failed to bind socket for " << it->address << ":" << it->port << std::endl;
             close(it->socket);
             it->socket = -1;
             continue;
@@ -72,7 +71,7 @@ bool HttpServer::setupServerSocket() {
 
         // Listen for connections with a larger backlog for Siege testing
         if (listen(it->socket, SOMAXCONN) < 0) {
-            log.error() << "Failed to listen on socket for " << it->address << ":" << it->port << ": " << strerror(errno) << std::endl;
+            log.error() << "Failed to listen on socket for " << it->address << ":" << it->port << std::endl;
             close(it->socket);
             it->socket = -1;
             continue;
@@ -101,18 +100,14 @@ void HttpServer::acceptNewConnections() {
             // Try to accept a new connection
             int clientSocket = accept(it->socket, (struct sockaddr *)&clientAddr, &clientAddrLen);
             if (clientSocket < 0) {
-                // Check if there are no more connections to accept
-                if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                    break;
-                }
-                
-                log.error() << "Failed to accept connection: " << strerror(errno) << std::endl;
+                // No more connections to accept or error
+                log.error() << "Failed to accept connection" << std::endl;
                 break;
             }
 
             // Set non-blocking mode for client socket
             if (!setNonBlocking(clientSocket)) {
-                log.error() << "Failed to set non-blocking mode for client socket: " << strerror(errno) << std::endl;
+                log.error() << "Failed to set non-blocking mode for client socket" << std::endl;
                 close(clientSocket);
                 continue;
             }
@@ -120,21 +115,21 @@ void HttpServer::acceptNewConnections() {
             // Set TCP_NODELAY to disable Nagle's algorithm
             int flag = 1;
             if (setsockopt(clientSocket, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(flag)) < 0) {
-                log.error() << "Failed to set TCP_NODELAY for client socket: " << strerror(errno) << std::endl;
+                log.error() << "Failed to set TCP_NODELAY for client socket" << std::endl;
                 // Not critical, continue anyway
             }
 
             // Increase socket buffer sizes
             int recvBufSize = 262144; // 256KB
             int sendBufSize = 262144; // 256KB
-            
+
             if (setsockopt(clientSocket, SOL_SOCKET, SO_RCVBUF, &recvBufSize, sizeof(recvBufSize)) < 0) {
-                log.error() << "Failed to set receive buffer size for client socket: " << strerror(errno) << std::endl;
+                log.error() << "Failed to set receive buffer size for client socket" << std::endl;
                 // Not critical, continue anyway
             }
-            
+
             if (setsockopt(clientSocket, SOL_SOCKET, SO_SNDBUF, &sendBufSize, sizeof(sendBufSize)) < 0) {
-                log.error() << "Failed to set send buffer size for client socket: " << strerror(errno) << std::endl;
+                log.error() << "Failed to set send buffer size for client socket" << std::endl;
                 // Not critical, continue anyway
             }
 

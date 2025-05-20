@@ -3,6 +3,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <cstring>
+#include <time.h>
 
 void HttpServer::handlePostRequest(int clientSocket, const std::string &request, const std::string &path, bool closeConnection) {
     log.info() << "Handling POST request for path: " << path << std::endl;
@@ -62,20 +63,19 @@ void HttpServer::handlePostRequest(int clientSocket, const std::string &request,
 
                                 log.info() << "File uploaded successfully: " << filePath << std::endl;
 
-                                // Send success response
-                                std::string connectionHeader = closeConnection ? "close" : "keep-alive";
-                                std::string successResponse = "HTTP/1.1 200 OK\r\n"
-                                                            "Content-Type: text/html\r\n"
-                                                            "Content-Length: 200\r\n"
-                                                            "Connection: " + connectionHeader + "\r\n"
-                                                            "\r\n"
-                                                            "<html><head><title>File Uploaded</title></head>"
-                                                            "<body><h1>File Uploaded</h1>"
-                                                            "<p>The file " + filename + " was uploaded successfully.</p>"
-                                                            "<p><a href=\"/\">Back to home</a></p>"
-                                                            "</body></html>";
+                                // Create success response content
+                                std::string content = "<html><head><title>File Uploaded</title></head>"
+                                                    "<body><h1>File Uploaded</h1>"
+                                                    "<p>The file " + filename + " was uploaded successfully.</p>"
+                                                    "<p><a href=\"/\">Back to home</a></p>"
+                                                    "</body></html>";
 
-                                queueWrite(clientSocket, successResponse);
+                                // Use the standard sendString function
+                                log.debug() << "Sending response using sendString" << std::endl;
+                                sendString(clientSocket, content, 200, "text/html", false, true);
+
+                                // Don't close the connection here, let the standard mechanism handle it
+                                return;
                             } else {
                                 // Error saving file
                                 log.error() << "Failed to save uploaded file: " << filePath << std::endl;

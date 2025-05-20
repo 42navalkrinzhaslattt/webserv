@@ -8,6 +8,7 @@
 #include "HttpServer.hpp"
 #include "Logger.hpp"
 #include "Options.hpp"
+//todo: differ between 0 and -1 return value after read/write
 
 int main(int ac, char **av) {
     try {
