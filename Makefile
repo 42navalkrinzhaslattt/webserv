@@ -6,10 +6,7 @@ NAME := webserv
 # change to c for C projects and cpp for C++ projects
 # source files must still be specified with their extension
 EXT := cpp
-TEST := c2_unit_tests
 UNIT_TEST_DIR := test/unit_tests
-CATCH2 := Catch2
-TOOLS := script
 
 # tools
 # Not using CXX since it defaults to g++, thus making it impossible to use another default while also using ?= assignment
@@ -50,7 +47,7 @@ ifeq ($(ASAN),1)
 endif
 
 # includes
-INCLUDES := -I./src -I./$(CATCH2)/src
+INCLUDES := -I./src
 
 # defines
 DEFINES :=
@@ -59,14 +56,10 @@ DEFINES :=
 vpath %.$(EXT) src
 SRC += Ansi.cpp
 SRC += CgiHandler.cpp
-SRC += Config.cpp
 SRC += Constants.cpp
-SRC += DirectiveValidation.cpp
 SRC += DirectoryIndexer.cpp
-SRC += Errors.cpp
 SRC += Logger.cpp
 SRC += Options.cpp
-SRC += Reflection.cpp
 SRC += Repr.cpp
 SRC += Utils.cpp
 SRC += main.cpp # translation unit with int main(){} MUST be called main.cpp for unit tests to work, see object vars logic below
@@ -100,25 +93,13 @@ SRC += UriCanonicalization.cpp
 SRC += Uploads.cpp
 SRC += ConfigParsing.cpp
 
-# additional Catch2 sources
-vpath %.$(EXT) $(UNIT_TEST_DIR)
-C2_SRC := $(wildcard $(UNIT_TEST_DIR)/*.cpp)
-C2_SRC := $(C2_SRC:$(UNIT_TEST_DIR)/%=%) # strip $(UNIT_TEST_DIR) prefix
-
 # object vars
 OBJ := $(SRC:.$(EXT)=.o)
-OBJ_C2 := $(filter-out main.c2.o, $(SRC:.$(EXT)=.c2.o)) # removes main.cpp
-OBJ_C2 += $(C2_SRC:.$(EXT)=.c2.o)                       # adds test unit sources
 OBJDIR := obj
-OBJDIR_C2 := obj_c2
 OBJ := $(addprefix $(OBJDIR)/,$(OBJ))
-OBJ_C2 := $(addprefix $(OBJDIR_C2)/,$(OBJ_C2))
 
 # deps (relink also when header files change)
 DEPS := $(OBJ:.o=.d)
--include $(DEPS)
-
-DEPS_C2 := $(OBJ_C2:.o=.d)
 -include $(DEPS)
 
 # rules
@@ -136,46 +117,27 @@ $(OBJDIR)/%.o: %.$(EXT) | $(OBJDIR)
 $(OBJDIR):
 	$(MKDIR) $@
 
-## Build with unit tests and Catch2 main
-all_c2: $(CATCH2)
-	$(MAKE) $(TEST)
-
-## Build unit tests
-$(TEST): $(OBJ_C2) | $(CATCH2)
-	$(CXX) $(OBJ_C2) $(LDFLAGS) $(LDLIBS) -o $@
-
-$(OBJDIR_C2)/%.c2.o: %.$(EXT) | $(OBJDIR_C2)
-	$(CXX) $< $(CPPFLAGS) $(CFLAGS) $(CXXFLAGS) $(INCLUDES) $(DEFINES) -DUNIT_TESTS -c -o $@
-
-$(OBJDIR_C2):
-	$(MKDIR) $@
-
-## Build Catch2 library
-$(CATCH2):
-	git clone https://github.com/catchorg/Catch2.git $@
-	cd $@ && git checkout v3.4.0
+## Build unit tests (using local catch.hpp)
+test:
+	$(MAKE) -C $(UNIT_TEST_DIR)
 
 # Cleanup
 ## Remove intermediate files
 clean:
 	$(RM) $(OBJ)
-	$(RM) $(OBJ_C2)
 	$(RM) $(DEPS)
-	$(RM) $(DEPS_C2)
 	$(RM) -r $(OBJDIR)
-	$(RM) -r $(OBJDIR_C2)
 	$(RM) -r llvm_profdata
 	$(RM) -r lcov_report
 	$(RM) -r gcovr_report
+	$(MAKE) -C $(UNIT_TEST_DIR) clean
 
 ## Remove intermediate files as well as well as build artefacts
 fclean: clean
 	$(RM) $(NAME)
-	$(RM) $(TEST)
 
-## Remove intermediate files, build artefacts, Catch2, and untracked files (interactively)
+## Remove intermediate files, build artefacts, and untracked files (interactively)
 pristine: fclean
-	$(RM) -r $(CATCH2)
 	git clean -dfi
 
 ## Rebuild project

@@ -1,9 +1,0 @@
-This is a test file for uploading to the webserv server.
-It contains multiple lines of text.
-We will upload this file and then retrieve it to verify that the upload functionality works correctly.
-We will also test deleting this file to verify that the DELETE method works correctly.
-
-The file should be uploaded to the /uploads directory and should be accessible via GET requests.
-We will also test that we can delete the file using DELETE requests.
-
-This file is part of the basic checks for the webserv project.
