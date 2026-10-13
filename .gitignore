@@ -1,7 +1,18 @@
-.gitignore
+# build
 obj/
+*.o
+*.d
+webserv
+tests/unit/config_test
+tests/unit/http_test
+
+# IDE / OS
 .idea/
+.vscode/
 CMakeLists.txt
 cmake-build-debug/
-webserv
+.DS_Store
+
+# test artifacts
 test_upload.txt
+__pycache__/
